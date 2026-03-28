@@ -1,0 +1,9 @@
+services:
+  karia-reach-backend:
+    build: .
+    container_name: karia-reach-backend
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    restart: unless-stopped
