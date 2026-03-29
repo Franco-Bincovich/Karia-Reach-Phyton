@@ -1,0 +1,37 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-sm { padding: 6px 12px; font-size: var(--font-sm); }
+.btn-md { padding: 10px 20px; font-size: var(--font-base); }
+.btn-lg { padding: 12px 28px; font-size: var(--font-lg); }
+
+.btn-primary { background: var(--primary); color: var(--white); }
+.btn-primary:hover:not(:disabled) { background: #1E90C0; }
+
+.btn-teal { background: var(--teal); color: var(--white); }
+.btn-teal:hover:not(:disabled) { background: #35B8B1; }
+
+.btn-danger { background: var(--error); color: var(--white); }
+.btn-danger:hover:not(:disabled) { background: #DC2626; }
+
+.btn-ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-light); }
+
+.btn-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -1,0 +1,49 @@
+:root {
+  /* Colores de marca KarIA */
+  --primary: #29ABE2;
+  --teal: #43D1C9;
+  --navy: #081C54;
+  --gray: #BABABA;
+  --white: #FFFFFF;
+  --bg-light: #F5F7FA;
+  --bg-card: #FFFFFF;
+  --text-primary: #081C54;
+  --text-secondary: #6B7280;
+  --border: #E5E7EB;
+  --success: #10B981;
+  --error: #EF4444;
+  --warning: #F59E0B;
+
+  /* Tabla ejecutiva */
+  --text-dark: #374151;
+  --row-alt: #F9FAFB;
+  --row-hover: #F0FFFE;
+  --row-selected: #E0F2FE;
+  --detail-bg: #F0F9FF;
+
+  /* Tipografia */
+  --font-family: 'Baloo 2', cursive, sans-serif;
+  --font-sm: 0.875rem;
+  --font-base: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.25rem;
+  --font-2xl: 1.5rem;
+  --font-3xl: 1.875rem;
+
+  /* Espaciado */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --header-height: 64px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+  --transition: 0.2s ease;
+}

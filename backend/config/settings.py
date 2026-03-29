@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # --- Auth ---
     KARIA_API_KEY: str = ""
     SECRET_KEY: str = ""
+    JWT_SECRET: str = ""
+    JWT_EXPIRATION_HOURS: int = 8
 
     # --- Cifrado de API keys de terceros en DB ---
     ENCRYPTION_KEY: str = ""

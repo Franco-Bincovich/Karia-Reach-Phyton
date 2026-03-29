@@ -127,15 +127,12 @@ async def listar_campanas() -> list[dict]:
 
 
 async def obtener_dashboard() -> dict:
-    """Genera un resumen general con totales del sistema."""
-    contactos = await contacts_repository.listar()
-    templates = await templates_repository.listar()
-    campanas = await campaigns_repository.listar()
+    """Genera un resumen general con queries COUNT (no trae todos los registros)."""
     return {
-        "contactos": len(contactos),
-        "templates": len(templates),
-        "emails_enviados": sum(c.get("sent_count", 0) for c in campanas),
-        "campanas": len(campanas),
+        "contactos": await contacts_repository.contar(),
+        "templates": await templates_repository.contar(),
+        "campanas": await campaigns_repository.contar(),
+        "emails_enviados": await campaigns_repository.sumar_enviados(),
     }
 
 

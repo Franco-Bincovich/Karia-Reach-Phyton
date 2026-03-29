@@ -1,0 +1,94 @@
+.historial-card { padding: var(--space-lg); }
+
+.historial-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.historial-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  color: var(--text-dark);
+}
+.historial-table th {
+  background: var(--navy);
+  color: var(--white);
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.historial-table th:first-child { border-radius: var(--radius) 0 0 0; }
+.historial-table th:last-child { border-radius: 0 var(--radius) 0 0; }
+
+.historial-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.historial-table tbody tr:nth-child(4n+1) { background: var(--row-alt); }
+.historial-table tbody tr:hover:not(.detail-row) { background: var(--row-hover); }
+.historial-table tbody tr.row-expanded { background: var(--row-selected); }
+
+.email-cell { font-size: 0.8rem; color: var(--text-secondary); }
+
+.expand-icon {
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 4px;
+  user-select: none;
+}
+.expand-icon:hover { color: var(--primary); }
+
+.origen-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.delete-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; padding: 4px; border-radius: var(--radius);
+  opacity: 0.4; transition: opacity var(--transition);
+}
+.delete-btn:hover { opacity: 1; }
+
+.detail-row td { padding: 0 !important; border-bottom: 1px solid var(--border); }
+.detail-panel {
+  background: var(--detail-bg);
+  padding: 14px 20px 14px 50px;
+  animation: expandIn 0.2s ease;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 24px;
+}
+.detail-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+@keyframes expandIn {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 200px; }
+}
+
+.empty-row { text-align: center; padding: var(--space-2xl); color: var(--text-secondary); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding-top: var(--space-lg);
+}

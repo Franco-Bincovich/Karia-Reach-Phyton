@@ -25,6 +25,16 @@ async def listar() -> list[dict]:
         raise AppError("Error al listar templates", "DB_TEMPLATES_LIST", 500) from exc
 
 
+async def contar() -> int:
+    """Devuelve el total de templates."""
+    try:
+        resp = supabase.table(_TABLE).select("id", count="exact").execute()
+        return resp.count or 0
+    except Exception as exc:
+        log.error("Error contando templates: %s", exc)
+        raise AppError("Error al contar templates", "DB_TEMPLATES_COUNT", 500) from exc
+
+
 async def crear(template: dict) -> dict:
     """
     Inserta un template nuevo.

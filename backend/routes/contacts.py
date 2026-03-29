@@ -12,12 +12,13 @@ Endpoints:
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from controllers import contacts_controller
+from middleware.rate_limiter import search_limit
 
-router = APIRouter(prefix="/api/contacts", tags=["contacts"])
+router = APIRouter(prefix="/api/contacts", tags=["contacts"], redirect_slashes=False)
 
 
 # --- Modelos de validacion ---
@@ -54,14 +55,15 @@ class ManualContactRequest(ContactoBase):
 
 # --- Endpoints ---
 
-@router.get("/")
+@router.get("")
 async def listar() -> dict:
     """Lista todos los contactos."""
     return await contacts_controller.listar()
 
 
 @router.post("/search-ai")
-async def buscar_con_ia(body: SearchAIRequest) -> dict:
+@search_limit
+async def buscar_con_ia(request: Request, body: SearchAIRequest) -> dict:
     """Busca contactos usando IA con web search."""
     return await contacts_controller.buscar_con_ia(body.rubro, body.ubicacion, body.cantidad)
 

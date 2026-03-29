@@ -21,7 +21,7 @@ from logger import get_logger
 from middleware.auth import AuthMiddleware
 from middleware.error_handler import AppError, app_error_handler, generic_error_handler
 from middleware.rate_limiter import limiter
-from routes import apollo, compose, contacts, replies, send, tracking
+from routes import apollo, auth, compose, contacts, replies, send, tracking
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -96,6 +96,7 @@ def _log_startup_status() -> None:
 app = FastAPI(
     title="Karia Reach Backend",
     version="1.0.0",
+    redirect_slashes=False,
     lifespan=lifespan,
 )
 
@@ -119,6 +120,7 @@ app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
 # Routers
+app.include_router(auth.router)
 app.include_router(contacts.router)
 app.include_router(compose.router)
 app.include_router(send.router)

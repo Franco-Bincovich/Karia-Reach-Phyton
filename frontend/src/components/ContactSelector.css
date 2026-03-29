@@ -1,0 +1,39 @@
+.cs-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.cs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  color: var(--text-dark);
+}
+.cs-table th {
+  background: var(--navy);
+  color: var(--white);
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.cs-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.cs-table tbody tr:nth-child(even) { background: var(--row-alt); }
+.cs-table tbody tr:hover { background: var(--row-hover); }
+.cs-table tbody tr.selected { background: var(--row-selected); }
+.cs-table input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+.cs-empty { text-align: center; padding: var(--space-lg); color: var(--text-secondary); }
+.cs-footer {
+  padding: 8px 14px;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}

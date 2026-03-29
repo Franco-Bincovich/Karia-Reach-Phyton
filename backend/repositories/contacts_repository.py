@@ -29,6 +29,16 @@ async def listar() -> list[dict]:
         raise AppError("Error al listar contactos", "DB_CONTACTS_LIST", 500) from exc
 
 
+async def contar() -> int:
+    """Devuelve el total de contactos (query liviana, solo cuenta)."""
+    try:
+        resp = supabase.table(_TABLE).select("id", count="exact").execute()
+        return resp.count or 0
+    except Exception as exc:
+        log.error("Error contando contactos: %s", exc)
+        raise AppError("Error al contar contactos", "DB_CONTACTS_COUNT", 500) from exc
+
+
 async def buscar_por_email(email: str) -> Optional[dict]:
     """
     Busca un contacto por email empresarial o personal.
