@@ -20,7 +20,7 @@ log = get_logger(__name__)
 settings = get_settings()
 
 _TOKEN_URI = "https://oauth2.googleapis.com/token"
-_SCOPES = ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"]
+_SCOPES = ["https://mail.google.com/"]
 
 
 def _crear_servicio():
@@ -69,7 +69,13 @@ def _enviar_sync(destinatario: str, asunto: str, cuerpo: str, tracking_url: Opti
         cuerpo = _inyectar_pixel(cuerpo, tracking_url)
     mensaje = _construir_mensaje(destinatario, asunto, cuerpo)
     resultado = _servicio.users().messages().send(userId="me", body=mensaje).execute()
-    return {"message_id": resultado["id"], "destinatario": destinatario}
+    # Obtener el Message-ID RFC822 real (necesario para buscar respuestas)
+    gmail_id = resultado["id"]
+    msg = _servicio.users().messages().get(userId="me", id=gmail_id, format="metadata",
+                                           metadataHeaders=["Message-ID"]).execute()
+    hdrs = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    rfc822_id = hdrs.get("message-id", gmail_id)
+    return {"message_id": rfc822_id, "destinatario": destinatario}
 
 async def enviar_email(
     destinatario: str, asunto: str, cuerpo: str, tracking_url: Optional[str] = None
@@ -85,6 +91,14 @@ async def enviar_email(
     except AppError:
         raise
     except Exception as exc:
+        error_str = str(exc).lower()
+        if "invalid_grant" in error_str or "token has been expired" in error_str or "token_expired" in error_str:
+            log.error("Gmail OAuth token expirado o revocado: %s", exc)
+            raise AppError(
+                "Token de Gmail expirado. Regenerá el refresh token en Google Cloud Console y actualizá GMAIL_REFRESH_TOKEN en el .env.",
+                "GMAIL_TOKEN_EXPIRED",
+                401
+            ) from exc
         log.error("Error enviando email a %s: %s", destinatario, exc)
         raise AppError(f"Error al enviar email a {destinatario}", "GMAIL_SEND_ERROR", 502) from exc
 
@@ -118,15 +132,25 @@ def _extraer_texto(payload: dict) -> str:
     return ""
 
 def _leer_respuestas_sync(message_ids: list[str]) -> list[dict]:
-    """Lectura sincrona — se ejecuta dentro de run_in_executor."""
+    """Lectura sincrona — busca replies via threads de Gmail."""
     respuestas = []
     for mid in message_ids:
         try:
-            query = f"rfc822msgid:{mid} OR in-reply-to:{mid}"  # Gmail search operators
-            res = _servicio.users().messages().list(userId="me", q=query, maxResults=10).execute()
-            for msg_ref in res.get("messages", []):
-                msg = _servicio.users().messages().get(
-                    userId="me", id=msg_ref["id"], format="full").execute()
+            # 1. Buscar el mensaje original por su Message-ID RFC822
+            clean = mid.strip("<>")
+            res = _servicio.users().messages().list(
+                userId="me", q=f"rfc822msgid:{clean}", maxResults=1
+            ).execute()
+            if not res.get("messages"):
+                continue
+            # 2. Obtener el threadId del mensaje original
+            thread_id = res["messages"][0]["threadId"]
+            # 3. Traer todos los mensajes del thread
+            thread = _servicio.users().threads().get(
+                userId="me", id=thread_id, format="full"
+            ).execute()
+            # 4. Filtrar: solo mensajes que NO son nuestros (esas son las respuestas)
+            for msg in thread.get("messages", []):
                 hdrs = {h["name"].lower(): h["value"] for h in msg["payload"]["headers"]}
                 if settings.GMAIL_FROM_EMAIL in hdrs.get("from", ""):
                     continue
@@ -135,7 +159,7 @@ def _leer_respuestas_sync(message_ids: list[str]) -> list[dict]:
                     "asunto": hdrs.get("subject", ""),
                     "cuerpo": _extraer_texto(msg["payload"]),
                     "fecha": hdrs.get("date", ""),
-                    "message_id": hdrs.get("message-id", msg_ref["id"]),
+                    "message_id": hdrs.get("message-id", msg["id"]),
                     "in_reply_to": mid,
                 })
         except Exception as exc:

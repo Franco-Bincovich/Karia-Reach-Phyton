@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     PORT: int = 3001
     NODE_ENV: str = "development"  # Legado del stack Node.js anterior, se mantiene por docker-compose
     BASE_URL: str = "http://localhost:3001"
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_ORIGINS: str = "http://localhost:5173"
 
     # --- Supabase ---
     SUPABASE_URL: str = ""

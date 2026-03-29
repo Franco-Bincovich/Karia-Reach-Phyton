@@ -21,7 +21,7 @@ export default function Estadisticas() {
 
   useEffect(() => {
     Promise.all([api.get(API_SEND_STATS), api.get(API_SEND_CAMPAIGNS)])
-      .then(([s, c]) => { setStats(s.data.data); setCampanas(c.data.data || []) })
+      .then(([s, c]) => { setStats(s.data.data || {}); setCampanas(c.data.data || []) })
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false))
   }, [])

@@ -34,6 +34,9 @@ export default function ComponerEmails() {
   }
 
   const generar = async () => {
+    if (tab === 'variantes' && (!form.descripcion || form.descripcion.length < 10)) {
+      return toast.error('La descripcion debe tener al menos 10 caracteres')
+    }
     setLoading(true)
     try {
       if (tab === 'variantes') {
@@ -55,10 +58,14 @@ export default function ComponerEmails() {
   }
 
   const guardarTemplate = async (r) => {
+    const asunto = r.asunto || r.destinatario || ''
+    const cuerpo = r.cuerpo || ''
+    if (asunto.length < 5) return toast.error('El asunto debe tener al menos 5 caracteres')
+    if (cuerpo.length < 10) return toast.error('El cuerpo debe tener al menos 10 caracteres')
     try {
       await api.post(API_COMPOSE_TEMPLATES, {
         nombre: r.asunto?.slice(0, 50) || 'Sin nombre',
-        asunto: r.asunto || r.destinatario || '', cuerpo: r.cuerpo || '',
+        asunto, cuerpo,
         tono: form.tono, objetivo: form.objetivo,
       })
       toast.success('Plantilla guardada'); cargarTemplates()

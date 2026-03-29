@@ -80,7 +80,7 @@ async def _registrar_resultados(
             "message_id": resultado.get("message_id"),
             "exitoso": exitoso,
             "error": resultado.get("error"),
-            "enviado_at": ahora if exitoso else None,
+            "enviado_at": ahora,
         })
         sent += 1 if exitoso else 0
         failed += 0 if exitoso else 1

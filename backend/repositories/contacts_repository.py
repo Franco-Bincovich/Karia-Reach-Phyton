@@ -19,6 +19,19 @@ log = get_logger(__name__)
 _TABLE = "contacts"
 
 
+_CAMPOS_STR_NO_NULL = ("email_empresarial", "email_personal", "telefono_empresa", "telefono_personal")
+
+
+def _normalizar_contacto(contacto: dict) -> dict:
+    """Prepara un contacto antes de insertar en DB: vacios a None y confianza a int."""
+    for campo in _CAMPOS_STR_NO_NULL:
+        contacto[campo] = contacto.get(campo) or None
+    val = contacto.get("confianza")
+    if isinstance(val, float) and val <= 1.0:
+        contacto["confianza"] = int(round(val * 100))
+    return contacto
+
+
 async def listar() -> list[dict]:
     """Devuelve todos los contactos ordenados por fecha de creacion desc."""
     try:
@@ -73,6 +86,7 @@ async def crear(contacto: dict) -> dict:
         Dict del contacto creado con id y timestamps.
     """
     try:
+        _normalizar_contacto(contacto)
         resp = supabase.table(_TABLE).insert(contacto).execute()
         log.info("Contacto creado: %s", contacto.get("email_empresarial") or contacto.get("email_personal"))
         return resp.data[0]
@@ -106,6 +120,8 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
         return []
 
     try:
+        for c in emails_nuevos:
+            _normalizar_contacto(c)
         resp = supabase.table(_TABLE).insert(emails_nuevos).execute()
         log.info("Bulk insert: %d/%d contactos creados", len(resp.data), len(contactos))
         return resp.data

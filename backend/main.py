@@ -87,6 +87,9 @@ def _log_startup_status() -> None:
     if len(settings.KARIA_API_KEY) < 16:
         log.error("  KARIA_API_KEY: FALTA o muy corta (min 16 chars) — ABORTANDO")
         sys.exit(1)
+    if len(settings.JWT_SECRET) < 16:
+        log.error("  JWT_SECRET: FALTA o muy corta (min 16 chars) — ABORTANDO")
+        sys.exit(1)
     if not settings.ENCRYPTION_KEY:
         log.warning("  ENCRYPTION_KEY: FALTA — API keys de terceros se guardaran SIN cifrar")
 

@@ -43,7 +43,7 @@ export default function EnviarCampana() {
       }
       const { data } = await api.post(API_SEND_CAMPAIGN, payload)
       setResultado(data.data)
-      toast.success(`Campana enviada: ${data.data.sent_count} emails`)
+      toast.success(`Campana enviada: ${data.data?.sent_count ?? 0} emails`)
     } catch (err) { toast.error(err.message) }
     finally { setLoading(false) }
   }

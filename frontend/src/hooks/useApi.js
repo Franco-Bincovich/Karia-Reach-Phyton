@@ -20,6 +20,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       sessionStorage.removeItem('karia_token')
       sessionStorage.removeItem('karia_user')
+      window.location.reload()
     }
     const msg = err.response?.data?.message || err.message || 'Error de conexion'
     return Promise.reject(new Error(msg))

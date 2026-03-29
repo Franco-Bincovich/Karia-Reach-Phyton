@@ -64,6 +64,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             except jwt.InvalidTokenError as exc:
                 # DEBUG: loguear error exacto de JWT
                 log.debug("JWT decode fallo: %s — token[:20]='%s'", exc, token[:20])
+                return self._unauthorized(request)
 
         return self._unauthorized(request)
 

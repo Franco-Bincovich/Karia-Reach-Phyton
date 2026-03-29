@@ -13,7 +13,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from controllers import contacts_controller
 from middleware.rate_limiter import search_limit
@@ -41,6 +41,16 @@ class ContactoBase(BaseModel):
     telefono_personal: Optional[str] = None
     confianza: Optional[float] = Field(None, ge=0.0, le=1.0)
     origen: str = "ai"
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("email_empresarial", "email_personal", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: object) -> object:
+        """Convierte strings vacias a None para evitar 422 en EmailStr."""
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 
 class SaveSelectionRequest(BaseModel):

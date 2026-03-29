@@ -37,12 +37,18 @@ async def _llamar_claude(system: str, user: str, *, tools: Optional[list] = None
         if tools:
             kwargs["tools"] = tools
         response = await _client.messages.create(**kwargs)
-        textos = [b.text for b in response.content if hasattr(b, "text")]
+        textos = [b.text for b in response.content if hasattr(b, "text") and b.text is not None]
         return "\n".join(textos)
     except AppError:
         raise
     except Exception as exc:
-        log.error("Error en llamada a Claude: %s", exc)
+        log.error("Error en llamada a Claude: %s — tipo: %s", exc, type(exc).__name__)
+        error_str = str(exc).lower()
+        if "authentication" in error_str or "api_key" in error_str or "invalid x-api-key" in error_str:
+            raise AppError(
+                "API key de Anthropic invalida. Verifica ANTHROPIC_API_KEY en el .env.",
+                "CLAUDE_AUTH_ERROR", 401
+            ) from exc
         raise AppError("Error al comunicarse con Claude", "CLAUDE_API_ERROR", 502) from exc
 
 
@@ -74,7 +80,9 @@ async def generar_emails(
     """
     system = (
         "Sos un copywriter experto en email marketing B2B. "
-        f"Escribis en español rioplatense argentino, profesional pero cercano. {_SAFE} {_JSON_ONLY}"
+        "Escribis en español rioplatense argentino, profesional pero cercano. "
+        "El campo 'cuerpo' DEBE ser HTML valido para email (usa <p>, <strong>, <em>, <br>, <ul>, <li>). "
+        f"NUNCA uses markdown (**, *, ##, etc). {_SAFE} {_JSON_ONLY}"
     )
     user = (
         f"Generame {variantes} variantes de email.\n"
@@ -90,27 +98,23 @@ async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10) -> li
     dos telefonos (empresa/celular) por separado. Null si no encuentra.
     """
     system = (
-        "Sos un investigador comercial experto. "
-        "Buscá contactos reales de empresas usando la web. "
-        "Para cada contacto buscá POR SEPARADO:\n"
-        "- email_empresarial: email corporativo del dominio de la empresa\n"
-        "- email_personal: email de proveedor gratuito (gmail, hotmail, yahoo)\n"
-        "- telefono_empresa: numero de la empresa/oficina/conmutador\n"
-        "- telefono_personal: celular o numero directo de la persona\n\n"
-        "Si NO encontrás un dato, devolvé null para ese campo. NUNCA inventes datos.\n"
-        "El campo 'confianza' es un float de 0.0 a 1.0 que refleja "
-        f"cuantos campos pudieron ser verificados. {_SAFE} {_JSON_ONLY}"
+        "Investigador comercial. Usá web_search para buscar datos reales.\n"
+        "ESTRATEGIA: 1) Buscar empresas de [rubro] en [ubicacion] 2) Por cada una buscar sitio web, "
+        "emails, telefonos y nombre del responsable (gerente/director/dueño).\n"
+        "REGLAS: nombre y empresa NUNCA null. NUNCA inventar datos (null si no encontras). "
+        "Excluir contactos sin al menos 1 email o 1 telefono.\n"
+        "Confianza segun campos encontrados (email_empresarial, email_personal, telefono_empresa, telefono_personal): "
+        f"4=1.0 | 3=0.75 | 2=0.5 | 1=0.25. {_SAFE} {_JSON_ONLY}"
     )
     user = (
-        f"<user_input>\nRubro: {rubro}\nUbicacion: {ubicacion}\nCantidad: {cantidad}\n</user_input>\n\n"
-        "Formato EXACTO por contacto:\n"
-        '[{"nombre": "...", "empresa": "...", "cargo": "...", '
-        '"email_empresarial": "..."|null, "email_personal": "..."|null, '
-        '"telefono_empresa": "..."|null, "telefono_personal": "..."|null, '
-        '"confianza": 0.0-1.0, "origen": "ai"}]'
+        f"<user_input>\nRubro: {rubro}\nUbicacion: {ubicacion}\nCantidad: {cantidad}\n</user_input>\n"
+        "Usá web_search. Devolvé JSON array:\n"
+        '[{"nombre":"...","empresa":"...","cargo":"...","email_empresarial":"..."|null,'
+        '"email_personal":"..."|null,"telefono_empresa":"..."|null,"telefono_personal":"..."|null,'
+        '"confianza":0.75,"origen":"ai"}]'
     )
     # Web search tool (v20250305): permite a Claude buscar info actual en la web
-    tools = [{"type": "web_search_20250305"}]
+    tools = [{"type": "web_search_20250305", "name": "web_search"}]
     return _parsear_json(await _llamar_claude(system, user, tools=tools))
 
 
@@ -130,7 +134,9 @@ async def componer_desde_contactos(
     """
     system = (
         "Sos un copywriter B2B experto en cold emails. "
-        f"Escribis en español rioplatense argentino. Personalizá cada email segun el contacto. {_SAFE} {_JSON_ONLY}"
+        "Escribis en español rioplatense argentino. Personalizá cada email segun el contacto. "
+        "El campo 'cuerpo' DEBE ser HTML valido para email (usa <p>, <strong>, <em>, <br>, <ul>, <li>). "
+        f"NUNCA uses markdown (**, *, ##, etc). {_SAFE} {_JSON_ONLY}"
     )
     resumen = json.dumps(contactos, ensure_ascii=False, indent=2)
     user = (
