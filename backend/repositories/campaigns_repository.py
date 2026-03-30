@@ -5,7 +5,9 @@ Respondidos se calculan via JOIN con `email_replies`.
 
 from __future__ import annotations
 
-from integrations.supabase_client import supabase
+import asyncio
+
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -18,7 +20,11 @@ _RESULTS = "campaign_results"
 async def listar() -> list[dict]:
     """Devuelve todas las campanas ordenadas por creacion desc."""
     try:
-        resp = supabase.table(_CAMPAIGNS).select("*").order("created_at", desc=True).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).select("*")
+            .order("created_at", desc=True).execute()
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error listando campanas: %s", exc)
@@ -27,7 +33,10 @@ async def listar() -> list[dict]:
 async def contar() -> int:
     """Cuenta total de campanas (query liviana)."""
     try:
-        resp = supabase.table(_CAMPAIGNS).select("id", count="exact").execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).select("id", count="exact").execute()
+        ))
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando campanas: %s", exc)
@@ -36,7 +45,10 @@ async def contar() -> int:
 async def sumar_enviados() -> int:
     """Suma sent_count de todas las campanas."""
     try:
-        resp = supabase.table(_CAMPAIGNS).select("sent_count").execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).select("sent_count").execute()
+        ))
         return sum(c.get("sent_count", 0) for c in resp.data)
     except Exception as exc:
         log.error("Error sumando enviados: %s", exc)
@@ -45,7 +57,10 @@ async def sumar_enviados() -> int:
 async def crear(campana: dict) -> dict:
     """Crea una campana nueva."""
     try:
-        resp = supabase.table(_CAMPAIGNS).insert(campana).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).insert(campana).execute()
+        ))
         log.info("Campana creada: %s", campana.get("nombre"))
         return resp.data[0]
     except Exception as exc:
@@ -55,7 +70,10 @@ async def crear(campana: dict) -> dict:
 async def actualizar_metricas(id: str, metricas: dict) -> dict:
     """Actualiza metricas de una campana."""
     try:
-        resp = supabase.table(_CAMPAIGNS).update(metricas).eq("id", id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).update(metricas).eq("id", id).execute()
+        ))
         if not resp.data:
             raise AppError("Campana no encontrada", "DB_CAMPAIGNS_NOT_FOUND", 404)
         log.info("Metricas actualizadas para campana %s", id)
@@ -69,7 +87,10 @@ async def actualizar_metricas(id: str, metricas: dict) -> dict:
 async def crear_resultado(resultado: dict) -> dict:
     """Registra resultado de envio en campaign_results."""
     try:
-        resp = supabase.table(_RESULTS).insert(resultado).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_RESULTS).insert(resultado).execute()
+        ))
         return resp.data[0]
     except Exception as exc:
         log.error("Error creando resultado de campana: %s", exc)
@@ -78,8 +99,11 @@ async def crear_resultado(resultado: dict) -> dict:
 async def listar_resultados(campana_id: str) -> list[dict]:
     """Lista resultados de envio de una campana."""
     try:
-        resp = supabase.table(_RESULTS).select("*").eq(
-            "campaign_id", campana_id).order("enviado_at", desc=True).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_RESULTS).select("*").eq(
+                "campaign_id", campana_id).order("enviado_at", desc=True).execute()
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error listando resultados de campana %s: %s", campana_id, exc)
@@ -88,7 +112,11 @@ async def listar_resultados(campana_id: str) -> list[dict]:
 async def obtener_estadisticas_campana(campaign_id: str) -> dict:
     """Estadisticas detalladas: metricas + resultados individuales."""
     try:
-        resp = supabase.table(_CAMPAIGNS).select("*").eq("id", campaign_id).limit(1).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_CAMPAIGNS).select("*")
+            .eq("id", campaign_id).limit(1).execute()
+        ))
         if not resp.data:
             raise AppError("Campana no encontrada", "CAMPAIGN_NOT_FOUND", 404)
         c = resp.data[0]
@@ -97,9 +125,11 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
-        total = len(resultados) or 1  # or 1 evita division por cero
-        # Respondidos reales: contar en email_replies (campaign_results no tiene campo respondido)
-        replies = supabase.table("email_replies").select("id").eq("campaign_id", campaign_id).execute()
+        total = len(resultados) or 1
+        replies = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table("email_replies").select("id")
+            .eq("campaign_id", campaign_id).execute()
+        ))
         respondidos = len(replies.data)
 
         return {
@@ -126,15 +156,20 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
 async def obtener_estadisticas_globales() -> dict:
     """Estadisticas agregadas globales."""
     try:
+        loop = asyncio.get_event_loop()
         campanas = await listar()
-        resultados = supabase.table(_RESULTS).select("*").execute().data
+        resultados_resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_RESULTS).select("*").execute()
+        ))
+        resultados = resultados_resp.data
 
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
-        base = enviados or 1  # or 1 evita division por cero
-        # Respondidos reales: total de filas en email_replies
-        all_replies = supabase.table("email_replies").select("id").execute()
+        base = enviados or 1
+        all_replies = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table("email_replies").select("id").execute()
+        ))
         respondidos = len(all_replies.data)
 
         return {

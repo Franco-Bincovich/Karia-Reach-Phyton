@@ -7,9 +7,10 @@ desacoplada del flujo principal de campanas.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
-from integrations.supabase_client import supabase
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -26,13 +27,14 @@ async def registrar_apertura(campaign_id: str, contact_id: str) -> bool:
     """
     ahora = datetime.now(timezone.utc).isoformat()
     try:
-        resp = (
-            supabase.table("campaign_results")
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table("campaign_results")
             .update({"opened_at": ahora})
             .eq("campaign_id", campaign_id)
             .eq("contact_id", contact_id)
             .execute()
-        )
+        ))
         actualizado = len(resp.data) > 0
         if actualizado:
             log.info("Apertura: campaign=%s contact=%s at=%s", campaign_id, contact_id, ahora)

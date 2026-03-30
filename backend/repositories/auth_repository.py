@@ -6,9 +6,10 @@ Campos: id, nombre, email, password_hash, rol, activo, created_at.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
-from integrations.supabase_client import supabase
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -28,11 +29,12 @@ async def buscar_usuario_por_email(email: str) -> Optional[dict]:
         Dict del usuario o None si no existe/inactivo.
     """
     try:
-        resp = (
-            supabase.table(_TABLE).select("*")
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
             .eq("email", email).eq("activo", True)
             .limit(1).execute()
-        )
+        ))
         return resp.data[0] if resp.data else None
     except Exception as exc:
         log.error("Error buscando usuario %s: %s", email, exc)

@@ -2,8 +2,10 @@
 Cliente singleton de Supabase.
 
 Inicializa una unica instancia del cliente supabase-py
-usando las credenciales de settings. Verifica conexion al importar.
+usando las credenciales de settings. Lazy singleton: se crea en el primer uso.
 """
+
+from typing import Optional
 
 from supabase import Client, create_client
 
@@ -45,5 +47,12 @@ def _crear_cliente() -> Client:
         ) from exc
 
 
-# Instancia singleton — importar `supabase` desde este modulo
-supabase: Client = _crear_cliente()
+_cliente: Optional[Client] = None
+
+
+def get_supabase_client() -> Client:
+    """Devuelve el cliente Supabase, creandolo en el primer uso (lazy singleton)."""
+    global _cliente
+    if _cliente is None:
+        _cliente = _crear_cliente()
+    return _cliente

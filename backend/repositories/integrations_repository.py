@@ -8,12 +8,13 @@ no queden en texto plano en la base de datos ni en backups.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from config.settings import get_settings
-from integrations.supabase_client import supabase
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -58,10 +59,14 @@ async def guardar_api_key(servicio: str, api_key: str) -> dict:
     Usa upsert por servicio (UNIQUE constraint) para insertar o actualizar.
     """
     try:
-        resp = supabase.table(_TABLE).upsert(
-            {"servicio": servicio, "api_key": _cifrar(api_key), "activo": True},
-            on_conflict="servicio",
-        ).execute()
+        cifrada = _cifrar(api_key)
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).upsert(
+                {"servicio": servicio, "api_key": cifrada, "activo": True},
+                on_conflict="servicio",
+            ).execute()
+        ))
         log.info("API key guardada para %s", servicio)
         return resp.data[0]
     except Exception as exc:
@@ -72,11 +77,12 @@ async def guardar_api_key(servicio: str, api_key: str) -> dict:
 async def obtener_api_key(servicio: str) -> Optional[str]:
     """Obtiene y descifra la API key activa de un servicio."""
     try:
-        resp = (
-            supabase.table(_TABLE).select("api_key")
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("api_key")
             .eq("servicio", servicio).eq("activo", True)
             .limit(1).execute()
-        )
+        ))
         if not resp.data:
             return None
         return _descifrar(resp.data[0]["api_key"])
@@ -88,10 +94,11 @@ async def obtener_api_key(servicio: str) -> Optional[str]:
 async def eliminar_api_key(servicio: str) -> bool:
     """Desactiva la API key de un servicio."""
     try:
-        resp = (
-            supabase.table(_TABLE).update({"activo": False})
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).update({"activo": False})
             .eq("servicio", servicio).execute()
-        )
+        ))
         eliminado = len(resp.data) > 0
         if eliminado:
             log.info("API key desactivada para %s", servicio)

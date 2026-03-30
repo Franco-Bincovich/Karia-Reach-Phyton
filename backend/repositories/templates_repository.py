@@ -6,7 +6,9 @@ Campos: id, nombre, asunto, cuerpo, tono, objetivo, created_at, updated_at.
 
 from __future__ import annotations
 
-from integrations.supabase_client import supabase
+import asyncio
+
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -18,7 +20,10 @@ _TABLE = "templates"
 async def listar() -> list[dict]:
     """Devuelve todos los templates ordenados por fecha de creacion desc."""
     try:
-        resp = supabase.table(_TABLE).select("*").order("created_at", desc=True).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True).execute()
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error listando templates: %s", exc)
@@ -28,7 +33,10 @@ async def listar() -> list[dict]:
 async def contar() -> int:
     """Devuelve el total de templates."""
     try:
-        resp = supabase.table(_TABLE).select("id", count="exact").execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("id", count="exact").execute()
+        ))
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando templates: %s", exc)
@@ -46,7 +54,10 @@ async def crear(template: dict) -> dict:
         Dict del template creado con id y timestamps.
     """
     try:
-        resp = supabase.table(_TABLE).insert(template).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).insert(template).execute()
+        ))
         log.info("Template creado: %s", template.get("nombre"))
         return resp.data[0]
     except Exception as exc:
@@ -65,7 +76,10 @@ async def eliminar(id: str) -> bool:
         True si se elimino, False si no existia.
     """
     try:
-        resp = supabase.table(_TABLE).delete().eq("id", id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).delete().eq("id", id).execute()
+        ))
         eliminado = len(resp.data) > 0
         if eliminado:
             log.info("Template eliminado: %s", id)

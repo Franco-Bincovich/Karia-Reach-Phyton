@@ -8,9 +8,10 @@ origen (ai/manual), created_at.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
-from integrations.supabase_client import supabase
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -35,7 +36,10 @@ def _normalizar_contacto(contacto: dict) -> dict:
 async def listar() -> list[dict]:
     """Devuelve todos los contactos ordenados por fecha de creacion desc."""
     try:
-        resp = supabase.table(_TABLE).select("*").order("created_at", desc=True).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True).execute()
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error listando contactos: %s", exc)
@@ -45,7 +49,10 @@ async def listar() -> list[dict]:
 async def contar() -> int:
     """Devuelve el total de contactos (query liviana, solo cuenta)."""
     try:
-        resp = supabase.table(_TABLE).select("id", count="exact").execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("id", count="exact").execute()
+        ))
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando contactos: %s", exc)
@@ -65,10 +72,17 @@ async def buscar_por_email(email: str) -> Optional[dict]:
         Dict del contacto o None si no existe.
     """
     try:
-        resp = supabase.table(_TABLE).select("*").eq("email_empresarial", email).limit(1).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
+            .eq("email_empresarial", email).limit(1).execute()
+        ))
         if resp.data:
             return resp.data[0]
-        resp = supabase.table(_TABLE).select("*").eq("email_personal", email).limit(1).execute()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
+            .eq("email_personal", email).limit(1).execute()
+        ))
         return resp.data[0] if resp.data else None
     except Exception as exc:
         log.error("Error buscando contacto por email %s: %s", email, exc)
@@ -87,7 +101,10 @@ async def crear(contacto: dict) -> dict:
     """
     try:
         _normalizar_contacto(contacto)
-        resp = supabase.table(_TABLE).insert(contacto).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).insert(contacto).execute()
+        ))
         log.info("Contacto creado: %s", contacto.get("email_empresarial") or contacto.get("email_personal"))
         return resp.data[0]
     except Exception as exc:
@@ -107,7 +124,6 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
     """
     # Deduplicacion N+1: una query por contacto para verificar duplicados.
     # Aceptable porque el service limita a max 50 contactos por seleccion.
-    # Si se necesita escalar, reemplazar por un IN query batch.
     emails_nuevos = []
     for c in contactos:
         email = c.get("email_empresarial") or c.get("email_personal") or ""
@@ -122,7 +138,10 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
     try:
         for c in emails_nuevos:
             _normalizar_contacto(c)
-        resp = supabase.table(_TABLE).insert(emails_nuevos).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).insert(emails_nuevos).execute()
+        ))
         log.info("Bulk insert: %d/%d contactos creados", len(resp.data), len(contactos))
         return resp.data
     except Exception as exc:
@@ -141,7 +160,10 @@ async def eliminar(id: str) -> bool:
         True si se elimino, False si no existia.
     """
     try:
-        resp = supabase.table(_TABLE).delete().eq("id", id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).delete().eq("id", id).execute()
+        ))
         eliminado = len(resp.data) > 0
         if eliminado:
             log.info("Contacto eliminado: %s", id)

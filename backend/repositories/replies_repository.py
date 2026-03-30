@@ -7,7 +7,9 @@ de, asunto, cuerpo, fecha, leido, respondido.
 
 from __future__ import annotations
 
-from integrations.supabase_client import supabase
+import asyncio
+
+from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -19,7 +21,10 @@ _TABLE = "email_replies"
 async def guardar_respuesta(reply: dict) -> dict:
     """Inserta una respuesta de email en la tabla."""
     try:
-        resp = supabase.table(_TABLE).insert(reply).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).insert(reply).execute()
+        ))
         log.info("Respuesta guardada de %s", reply.get("de"))
         return resp.data[0]
     except Exception as exc:
@@ -30,11 +35,12 @@ async def guardar_respuesta(reply: dict) -> dict:
 async def listar_por_campana(campaign_id: str) -> list[dict]:
     """Lista todas las respuestas de una campana ordenadas por fecha desc."""
     try:
-        resp = (
-            supabase.table(_TABLE).select("*")
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
             .eq("campaign_id", campaign_id)
             .order("fecha", desc=True).execute()
-        )
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error listando respuestas de campana %s: %s", campaign_id, exc)
@@ -44,7 +50,10 @@ async def listar_por_campana(campaign_id: str) -> list[dict]:
 async def obtener_por_id(id: str) -> dict:
     """Obtiene una respuesta por id."""
     try:
-        resp = supabase.table(_TABLE).select("*").eq("id", id).limit(1).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*").eq("id", id).limit(1).execute()
+        ))
         if not resp.data:
             raise AppError("Respuesta no encontrada", "REPLY_NOT_FOUND", 404)
         return resp.data[0]
@@ -58,7 +67,10 @@ async def obtener_por_id(id: str) -> dict:
 async def buscar_por_message_id(message_id: str) -> list[dict]:
     """Busca respuestas existentes por message_id (para evitar duplicados)."""
     try:
-        resp = supabase.table(_TABLE).select("id").eq("message_id", message_id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("id").eq("message_id", message_id).execute()
+        ))
         return resp.data
     except Exception as exc:
         log.error("Error buscando por message_id: %s", exc)
@@ -68,7 +80,10 @@ async def buscar_por_message_id(message_id: str) -> list[dict]:
 async def marcar_leida(id: str) -> bool:
     """Marca una respuesta como leida."""
     try:
-        resp = supabase.table(_TABLE).update({"leido": True}).eq("id", id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).update({"leido": True}).eq("id", id).execute()
+        ))
         return len(resp.data) > 0
     except Exception as exc:
         log.error("Error marcando leida %s: %s", id, exc)
@@ -78,7 +93,10 @@ async def marcar_leida(id: str) -> bool:
 async def marcar_respondida(id: str) -> bool:
     """Marca una respuesta como respondida."""
     try:
-        resp = supabase.table(_TABLE).update({"respondido": True}).eq("id", id).execute()
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).update({"respondido": True}).eq("id", id).execute()
+        ))
         return len(resp.data) > 0
     except Exception as exc:
         log.error("Error marcando respondida %s: %s", id, exc)

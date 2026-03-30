@@ -38,7 +38,15 @@ def _crear_servicio():
         log.error("Error creando servicio Gmail: %s", exc)
         raise AppError("No se pudo autenticar con Gmail", "GMAIL_AUTH_ERROR", 502) from exc
 
-_servicio = _crear_servicio()  # Singleton: reutiliza conexion OAuth
+_servicio = None  # Lazy singleton: se inicializa en el primer uso
+
+
+def get_gmail_service():
+    """Devuelve el servicio Gmail, creandolo en el primer uso (lazy singleton)."""
+    global _servicio
+    if _servicio is None:
+        _servicio = _crear_servicio()
+    return _servicio
 _PIXEL = '<img src="{url}" width="1" height="1" style="display:none" alt="">'
 
 
@@ -68,11 +76,12 @@ def _enviar_sync(destinatario: str, asunto: str, cuerpo: str, tracking_url: Opti
     if tracking_url:
         cuerpo = _inyectar_pixel(cuerpo, tracking_url)
     mensaje = _construir_mensaje(destinatario, asunto, cuerpo)
-    resultado = _servicio.users().messages().send(userId="me", body=mensaje).execute()
+    svc = get_gmail_service()
+    resultado = svc.users().messages().send(userId="me", body=mensaje).execute()
     # Obtener el Message-ID RFC822 real (necesario para buscar respuestas)
     gmail_id = resultado["id"]
-    msg = _servicio.users().messages().get(userId="me", id=gmail_id, format="metadata",
-                                           metadataHeaders=["Message-ID"]).execute()
+    msg = svc.users().messages().get(userId="me", id=gmail_id, format="metadata",
+                                     metadataHeaders=["Message-ID"]).execute()
     hdrs = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
     rfc822_id = hdrs.get("message-id", gmail_id)
     return {"message_id": rfc822_id, "destinatario": destinatario}
@@ -133,12 +142,13 @@ def _extraer_texto(payload: dict) -> str:
 
 def _leer_respuestas_sync(message_ids: list[str]) -> list[dict]:
     """Lectura sincrona — busca replies via threads de Gmail."""
+    svc = get_gmail_service()
     respuestas = []
     for mid in message_ids:
         try:
             # 1. Buscar el mensaje original por su Message-ID RFC822
             clean = mid.strip("<>")
-            res = _servicio.users().messages().list(
+            res = svc.users().messages().list(
                 userId="me", q=f"rfc822msgid:{clean}", maxResults=1
             ).execute()
             if not res.get("messages"):
@@ -146,7 +156,7 @@ def _leer_respuestas_sync(message_ids: list[str]) -> list[dict]:
             # 2. Obtener el threadId del mensaje original
             thread_id = res["messages"][0]["threadId"]
             # 3. Traer todos los mensajes del thread
-            thread = _servicio.users().threads().get(
+            thread = svc.users().threads().get(
                 userId="me", id=thread_id, format="full"
             ).execute()
             # 4. Filtrar: solo mensajes que NO son nuestros (esas son las respuestas)
