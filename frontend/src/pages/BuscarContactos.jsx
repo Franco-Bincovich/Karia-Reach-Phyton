@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
+import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
 import Modal from '../components/UI/Modal'
@@ -13,6 +13,7 @@ export default function BuscarContactos() {
   const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10, prompt_personalizado: '' })
   const [metodo, setMetodo] = useState('ai')
   const [apolloOk, setApolloOk] = useState(null)
+  const [perplexityOk, setPerplexityOk] = useState(null)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [showManual, setShowManual] = useState(false)
@@ -22,8 +23,11 @@ export default function BuscarContactos() {
 
   useEffect(() => {
     api.get(API_APOLLO_STATUS)
-      .then(({ data }) => setApolloOk(!!data?.configured))
+      .then(({ data }) => setApolloOk(!!data?.data?.configurado))
       .catch(() => setApolloOk(false))
+    api.get(API_PERPLEXITY_STATUS)
+      .then(({ data }) => setPerplexityOk(!!data?.data?.configurado))
+      .catch(() => setPerplexityOk(false))
   }, [])
 
   const allSelected = results.length > 0 && results.every((c) => c._selected)
@@ -49,10 +53,13 @@ export default function BuscarContactos() {
   const buscar = async () => {
     if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
     if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa una ubicacion')
+    console.log("Método seleccionado:", metodo, "perplexityOk:", perplexityOk, "apolloOk:", apolloOk)
     if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
+    if (metodo === 'perplexity' && !perplexityOk) return toast.error('Configurá tu API key de Perplexity en Configuración')
     setLoading(true)
     try {
-      const endpoint = metodo === 'apollo' ? API_APOLLO_SEARCH : API_CONTACTS_SEARCH_AI
+      const endpoints = { ai: API_CONTACTS_SEARCH_AI, apollo: API_APOLLO_SEARCH, perplexity: API_PERPLEXITY_SEARCH }
+      const endpoint = endpoints[metodo]
       const payload = { ...form }
       if (!payload.prompt_personalizado?.trim()) delete payload.prompt_personalizado
       const { data } = await api.post(endpoint, payload)
@@ -132,12 +139,16 @@ export default function BuscarContactos() {
         <div className="flex gap-sm">
           <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
           <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
+          <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>
           <div style={{ flex: 1 }} />
-          <Button onClick={buscar}>Buscar</Button>
+          <Button onClick={() => { console.log("CLICK BUSCAR - metodo:", metodo); buscar(); }}>Buscar</Button>
           <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>
         </div>
         {metodo === 'apollo' && apolloOk === false && (
           <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Apollo en Configuración</p>
+        )}
+        {metodo === 'perplexity' && perplexityOk === false && (
+          <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Perplexity en Configuración</p>
         )}
       </div>
 

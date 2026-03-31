@@ -25,3 +25,6 @@ export const API_BLOQUE_REMOVE_CONTACT = (bid, cid) => `/api/bloques/${bid}/cont
 export const API_APOLLO_STATUS = '/api/apollo/status'
 export const API_APOLLO_CONFIG = '/api/apollo/config'
 export const API_APOLLO_SEARCH = '/api/apollo/search'
+export const API_PERPLEXITY_STATUS = '/api/perplexity/status'
+export const API_PERPLEXITY_CONFIG = '/api/perplexity/config'
+export const API_PERPLEXITY_SEARCH = '/api/perplexity/search'
