@@ -76,7 +76,7 @@ export default function BuscarContactos() {
   }
 
   const guardar = async () => {
-    const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => ({ ...rest, rubro: rest.rubro || form.rubro }))
+    const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => ({ ...rest, rubro: (rest.rubro && rest.rubro.trim()) ? rest.rubro : form.rubro }))
     if (!sel.length) return toast.error('Selecciona al menos un contacto')
     try {
       const { data } = await api.post(API_CONTACTS_SAVE, { contactos: sel })
