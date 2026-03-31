@@ -7,6 +7,7 @@ const ICONS = {
   '/componer': '\u270F\uFE0F',
   '/enviar': '\uD83D\uDCE8',
   '/historial': '\uD83D\uDCCB',
+  '/bloques': '\uD83D\uDDC2\uFE0F',
   '/estadisticas': '\uD83D\uDCCA',
   '/respuestas': '\uD83D\uDCE9',
   '/configuracion': '\u2699\uFE0F',

@@ -21,7 +21,7 @@ from logger import get_logger
 from middleware.auth import AuthMiddleware
 from middleware.error_handler import AppError, app_error_handler, generic_error_handler
 from middleware.rate_limiter import limiter
-from routes import apollo, auth, compose, contacts, replies, send, tracking
+from routes import apollo, auth, bloques, compose, contacts, replies, send, tracking
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -130,6 +130,7 @@ app.include_router(send.router)
 app.include_router(replies.router)
 app.include_router(apollo.router)
 app.include_router(tracking.router)
+app.include_router(bloques.router)
 
 
 @app.get("/health", tags=["health"])

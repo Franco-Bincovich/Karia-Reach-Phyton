@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS } from '../constants/api'
+import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
 import Modal from '../components/UI/Modal'
@@ -17,6 +17,8 @@ export default function BuscarContactos() {
   const [loading, setLoading] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
+  const [showBloque, setShowBloque] = useState(false)
+  const [nombreBloque, setNombreBloque] = useState('')
 
   useEffect(() => {
     api.get(API_APOLLO_STATUS)
@@ -26,16 +28,12 @@ export default function BuscarContactos() {
 
   const allSelected = results.length > 0 && results.every((c) => c._selected)
   const toggleAll = () => setResults((prev) => prev.map((c) => ({ ...c, _selected: !allSelected })))
+  const selCount = results.filter((c) => c._selected).length
 
   const COLUMNS = [
     { key: '_check', label: '', width: '40px',
-      headerRender: () => (
-        <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleccionar todos" />
-      ),
-      render: (_, row) => (
-        <input type="checkbox" checked={row._selected || false} readOnly
-          aria-label={`Seleccionar ${row.nombre || 'contacto'}`} />
-      ),
+      headerRender: () => <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleccionar todos" />,
+      render: (_, row) => <input type="checkbox" checked={row._selected || false} readOnly aria-label={`Seleccionar ${row.nombre || 'contacto'}`} />,
     },
     { key: 'nombre', label: 'Nombre' },
     { key: 'empresa', label: 'Empresa' },
@@ -44,10 +42,7 @@ export default function BuscarContactos() {
     { key: 'email_personal', label: 'Email Personal' },
     { key: 'telefono_empresa', label: 'Tel. Empresa' },
     { key: 'telefono_personal', label: 'Tel. Personal' },
-    { key: 'linkedin_url', label: 'LinkedIn', render: (v) => v
-      ? <a href={v} target="_blank" rel="noopener noreferrer" title="Ver LinkedIn">🔗</a>
-      : '-'
-    },
+    { key: 'linkedin_url', label: 'LinkedIn', render: (v) => v ? <a href={v} target="_blank" rel="noopener noreferrer" title="Ver LinkedIn">🔗</a> : '-' },
     { key: 'confianza', label: 'Confianza', render: (v) => <ConfidenceBadge value={v} /> },
   ]
 
@@ -85,12 +80,27 @@ export default function BuscarContactos() {
     } catch (err) { toast.error(err.message) }
   }
 
+  const armarBloque = async () => {
+    if (!nombreBloque.trim()) return toast.error('Ingresa un nombre para el bloque')
+    const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => ({ ...rest, rubro: (rest.rubro && rest.rubro.trim()) ? rest.rubro : form.rubro }))
+    try {
+      // Primero guardar contactos, luego crear bloque y agregar
+      const { data: saveData } = await api.post(API_CONTACTS_SAVE, { contactos: sel })
+      const ids = (saveData.data || []).map((c) => c.id)
+      if (ids.length) {
+        const { data: bloqueData } = await api.post(API_BLOQUES, { nombre: nombreBloque.trim() })
+        await api.post(API_BLOQUE_CONTACTOS(bloqueData.data.id), { contacto_ids: ids })
+      }
+      toast.success(`Bloque "${nombreBloque}" creado con ${ids.length} contactos`)
+      setShowBloque(false); setNombreBloque(''); setResults([])
+    } catch (err) { toast.error(err.message) }
+  }
+
   const agregarManual = async () => {
     try {
       await api.post(API_CONTACTS_MANUAL, manual)
       toast.success('Contacto agregado')
-      setShowManual(false)
-      setManual({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
+      setShowManual(false); setManual({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
     } catch (err) { toast.error(err.message) }
   }
 
@@ -134,8 +144,11 @@ export default function BuscarContactos() {
       {results.length > 0 && (
         <div className="card">
           <div className="flex-between mb-md">
-            <span className="text-sm text-secondary">{results.filter((c) => c._selected).length} seleccionados</span>
-            <Button size="sm" onClick={guardar}>Guardar seleccion</Button>
+            <span className="text-sm text-secondary">{selCount} seleccionados</span>
+            <div className="flex gap-sm">
+              {selCount > 0 && <Button size="sm" variant="ghost" onClick={() => setShowBloque(true)}>Armar bloque</Button>}
+              <Button size="sm" onClick={guardar}>Guardar seleccion</Button>
+            </div>
           </div>
           <Table columns={COLUMNS} data={results} onRowClick={toggleSelect} />
         </div>
@@ -150,6 +163,17 @@ export default function BuscarContactos() {
             </div>
           ))}
           <Button onClick={agregarManual}>Guardar</Button>
+        </Modal>
+      )}
+
+      {showBloque && (
+        <Modal title="Armar bloque" onClose={() => setShowBloque(false)}>
+          <div className="form-group">
+            <label htmlFor="bloque-nombre">Nombre del bloque</label>
+            <input id="bloque-nombre" value={nombreBloque} onChange={(e) => setNombreBloque(e.target.value)}
+              placeholder="Ej: Hospitales Córdoba" />
+          </div>
+          <Button onClick={armarBloque}>Crear bloque con {selCount} contactos</Button>
         </Modal>
       )}
     </div>

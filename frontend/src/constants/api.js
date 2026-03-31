@@ -18,6 +18,10 @@ export const API_REPLIES = '/api/replies'
 export const API_REPLIES_SYNC = (id) => `/api/replies/${id}/sync`
 export const API_REPLIES_RESPOND = (id) => `/api/replies/${id}/respond`
 export const API_REPLIES_READ = (id) => `/api/replies/${id}/read`
+export const API_BLOQUES = '/api/bloques'
+export const API_BLOQUE_CONTACTOS = (id) => `/api/bloques/${id}/contactos`
+export const API_BLOQUE_DELETE = (id) => `/api/bloques/${id}`
+export const API_BLOQUE_REMOVE_CONTACT = (bid, cid) => `/api/bloques/${bid}/contactos/${cid}`
 export const API_APOLLO_STATUS = '/api/apollo/status'
 export const API_APOLLO_CONFIG = '/api/apollo/config'
 export const API_APOLLO_SEARCH = '/api/apollo/search'

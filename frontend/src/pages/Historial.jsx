@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACT_DELETE } from '../constants/api'
+import { API_CONTACTS, API_CONTACT_DELETE, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
 import ConfirmModal from '../components/UI/ConfirmModal'
+import Modal from '../components/UI/Modal'
 import { exportarContactosExcel } from '../utils/exportExcel'
 import './Historial.css'
 
@@ -22,6 +23,7 @@ const OrigenBadge = ({ value }) => {
 export default function Historial() {
   const toast = useToast()
   const [contactos, setContactos] = useState([])
+  const [selected, setSelected] = useState(new Set())
   const [filtro, setFiltro] = useState('')
   const [filtroOrigen, setFiltroOrigen] = useState('todos')
   const [filtroRubro, setFiltroRubro] = useState('')
@@ -29,6 +31,8 @@ export default function Historial() {
   const [expandedId, setExpandedId] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showBloque, setShowBloque] = useState(false)
+  const [nombreBloque, setNombreBloque] = useState('')
 
   useEffect(() => {
     api.get(API_CONTACTS)
@@ -44,7 +48,26 @@ export default function Historial() {
       await api.delete(API_CONTACT_DELETE(id))
       toast.success('Contacto eliminado')
       setContactos((prev) => prev.filter((c) => c.id !== id))
+      setSelected((prev) => { const s = new Set(prev); s.delete(id); return s })
       if (expandedId === id) setExpandedId(null)
+    } catch (err) { toast.error(err.message) }
+  }
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const s = new Set(prev)
+      s.has(id) ? s.delete(id) : s.add(id)
+      return s
+    })
+  }
+
+  const armarBloque = async () => {
+    if (!nombreBloque.trim()) return toast.error('Ingresa un nombre para el bloque')
+    try {
+      const { data: bloqueData } = await api.post(API_BLOQUES, { nombre: nombreBloque.trim() })
+      await api.post(API_BLOQUE_CONTACTOS(bloqueData.data.id), { contacto_ids: [...selected] })
+      toast.success(`Bloque "${nombreBloque}" creado con ${selected.size} contactos`)
+      setShowBloque(false); setNombreBloque(''); setSelected(new Set())
     } catch (err) { toast.error(err.message) }
   }
 
@@ -74,9 +97,10 @@ export default function Historial() {
       <div className="card mb-md">
         <div className="flex-between mb-md">
           <label htmlFor="hist-filtro" className="text-sm text-secondary">Filtros</label>
-          <Button size="sm" variant="ghost" disabled={!contactos.length} onClick={() => exportarContactosExcel(contactos)}>
-            Exportar Excel
-          </Button>
+          <div className="flex gap-sm">
+            {selected.size > 0 && <Button size="sm" variant="ghost" onClick={() => setShowBloque(true)}>Armar bloque ({selected.size})</Button>}
+            <Button size="sm" variant="ghost" disabled={!contactos.length} onClick={() => exportarContactosExcel(contactos)}>Exportar Excel</Button>
+          </div>
         </div>
         <div className="form-row">
           <div className="form-group" style={{ flex: 2 }}>
@@ -103,7 +127,8 @@ export default function Historial() {
           <table className="historial-table">
             <thead>
               <tr>
-                <th style={{ width: 36 }} aria-label="Expandir"></th>
+                <th style={{ width: 36 }}></th>
+                <th style={{ width: 36 }} aria-label="Seleccionar"></th>
                 <th>Nombre</th>
                 <th>Empresa</th>
                 <th>Email Personal</th>
@@ -115,10 +140,12 @@ export default function Historial() {
             <tbody>
               {paginados.map((c) => (
                 <HistorialRow key={c.id} contacto={c} expanded={expandedId === c.id}
+                  checked={selected.has(c.id)}
+                  onCheck={() => toggleSelect(c.id)}
                   onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
                   onDelete={() => setDeleteId(c.id)} />
               ))}
-              {!paginados.length && <tr><td colSpan={7} className="empty-row">No hay contactos</td></tr>}
+              {!paginados.length && <tr><td colSpan={8} className="empty-row">No hay contactos</td></tr>}
             </tbody>
           </table>
         </div>
@@ -132,21 +159,28 @@ export default function Historial() {
       </div>
 
       {deleteId && (
-        <ConfirmModal
-          message="Este contacto sera eliminado permanentemente."
-          onConfirm={eliminar}
-          onCancel={() => setDeleteId(null)}
-        />
+        <ConfirmModal message="Este contacto sera eliminado permanentemente." onConfirm={eliminar} onCancel={() => setDeleteId(null)} />
+      )}
+
+      {showBloque && (
+        <Modal title="Armar bloque" onClose={() => setShowBloque(false)}>
+          <div className="form-group">
+            <label htmlFor="hist-bloque-nombre">Nombre del bloque</label>
+            <input id="hist-bloque-nombre" value={nombreBloque} onChange={(e) => setNombreBloque(e.target.value)} placeholder="Ej: Hospitales Córdoba" />
+          </div>
+          <Button onClick={armarBloque}>Crear bloque con {selected.size} contactos</Button>
+        </Modal>
       )}
     </div>
   )
 }
 
-function HistorialRow({ contacto: c, expanded, onToggle, onDelete }) {
+function HistorialRow({ contacto: c, expanded, checked, onCheck, onToggle, onDelete }) {
   return (
     <>
       <tr className={expanded ? 'row-expanded' : ''}>
         <td><span className="expand-icon" onClick={onToggle}>{expanded ? '\u25BC' : '\u25B6'}</span></td>
+        <td><input type="checkbox" checked={checked} onChange={onCheck} /></td>
         <td>{c.nombre || '-'}</td>
         <td>{c.empresa || '-'}</td>
         <td className="email-cell">{c.email_personal || '-'}</td>
@@ -156,7 +190,7 @@ function HistorialRow({ contacto: c, expanded, onToggle, onDelete }) {
       </tr>
       {expanded && (
         <tr className="detail-row">
-          <td colSpan={7}>
+          <td colSpan={8}>
             <div className="detail-panel">
               <div className="detail-grid">
                 <div><span className="detail-label">Email Empresarial</span>{c.email_empresarial || '-'}</div>

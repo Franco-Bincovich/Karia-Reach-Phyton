@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_COMPOSE_TEMPLATES, API_CONTACTS, API_SEND_CAMPAIGN } from '../constants/api'
+import { API_COMPOSE_TEMPLATES, API_CONTACTS, API_SEND_CAMPAIGN, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ContactSelector from '../components/ContactSelector'
@@ -11,6 +11,8 @@ export default function EnviarCampana() {
   const toast = useToast()
   const [templates, setTemplates] = useState([])
   const [contactos, setContactos] = useState([])
+  const [bloques, setBloques] = useState([])
+  const [bloqueId, setBloqueId] = useState('')
   const [form, setForm] = useState({ nombre: '', template_id: '' })
   const [loading, setLoading] = useState(false)
   const [resultado, setResultado] = useState(null)
@@ -23,7 +25,25 @@ export default function EnviarCampana() {
     api.get(API_CONTACTS)
       .then(({ data }) => setContactos((data.data || []).map((c) => ({ ...c, _selected: false }))))
       .catch((err) => toast.error(err.message))
+    api.get(API_BLOQUES)
+      .then(({ data }) => setBloques(data.data || []))
+      .catch((err) => toast.error(err.message))
   }, [])
+
+  const cargarBloque = async (id) => {
+    setBloqueId(id)
+    if (!id) {
+      // Reset: deseleccionar todos
+      setContactos((prev) => prev.map((c) => ({ ...c, _selected: false })))
+      return
+    }
+    try {
+      const { data } = await api.get(API_BLOQUE_CONTACTOS(id))
+      const bloqueIds = new Set((data.data || []).map((c) => c.id))
+      setContactos((prev) => prev.map((c) => ({ ...c, _selected: bloqueIds.has(c.id) })))
+      toast.success(`${bloqueIds.size} contactos del bloque cargados`)
+    } catch (err) { toast.error(err.message) }
+  }
 
   const validar = () => {
     if (!form.nombre.trim()) { toast.error('Ingresa un nombre para la campana'); return false }
@@ -62,6 +82,13 @@ export default function EnviarCampana() {
           <select id="camp-template" value={form.template_id} onChange={(e) => setForm({ ...form, template_id: e.target.value })}>
             <option value="">Seleccionar plantilla...</option>
             {templates.map((t) => <option key={t.id} value={t.id}>{t.nombre} — {t.asunto}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor="camp-bloque">Usar bloque (opcional)</label>
+          <select id="camp-bloque" value={bloqueId} onChange={(e) => cargarBloque(e.target.value)}>
+            <option value="">Seleccionar manualmente...</option>
+            {bloques.map((b) => <option key={b.id} value={b.id}>{b.nombre} ({b.cantidad_contactos} contactos)</option>)}
           </select>
         </div>
         <div className="form-group">
