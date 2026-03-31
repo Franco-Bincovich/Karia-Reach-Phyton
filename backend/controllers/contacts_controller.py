@@ -14,9 +14,12 @@ async def listar() -> dict:
     return {"data": contactos, "total": len(contactos)}
 
 
-async def buscar_con_ia(rubro: str, ubicacion: str, cantidad: int) -> dict:
+async def buscar_con_ia(
+    rubro: str, ubicacion: str, cantidad: int,
+    prompt_personalizado: str | None = None,
+) -> dict:
     """Busca contactos via IA y devuelve resultados con IDs temporales."""
-    contactos = await contacts_service.buscar_con_ia(rubro, ubicacion, cantidad)
+    contactos = await contacts_service.buscar_con_ia(rubro, ubicacion, cantidad, prompt_personalizado)
     return {"data": contactos, "total": len(contactos)}
 
 

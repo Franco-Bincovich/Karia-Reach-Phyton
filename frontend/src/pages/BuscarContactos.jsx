@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH } from '../constants/api'
+import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
 import Modal from '../components/UI/Modal'
@@ -10,11 +10,19 @@ import ConfidenceBadge from '../components/UI/ConfidenceBadge'
 
 export default function BuscarContactos() {
   const toast = useToast()
-  const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10 })
+  const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10, prompt_personalizado: '' })
+  const [metodo, setMetodo] = useState('ai')
+  const [apolloOk, setApolloOk] = useState(null)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
+
+  useEffect(() => {
+    api.get(API_APOLLO_STATUS)
+      .then(({ data }) => setApolloOk(!!data?.configured))
+      .catch(() => setApolloOk(false))
+  }, [])
 
   const allSelected = results.length > 0 && results.every((c) => c._selected)
   const toggleAll = () => setResults((prev) => prev.map((c) => ({ ...c, _selected: !allSelected })))
@@ -43,13 +51,16 @@ export default function BuscarContactos() {
     { key: 'confianza', label: 'Confianza', render: (v) => <ConfidenceBadge value={v} /> },
   ]
 
-  const buscar = async (source) => {
-    if (!form.rubro.trim()) return toast.error('Ingresa un rubro o industria')
-    if (!form.ubicacion.trim()) return toast.error('Ingresa una ubicacion')
+  const buscar = async () => {
+    if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
+    if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa una ubicacion')
+    if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
     setLoading(true)
     try {
-      const endpoint = source === 'apollo' ? API_APOLLO_SEARCH : API_CONTACTS_SEARCH_AI
-      const { data } = await api.post(endpoint, form)
+      const endpoint = metodo === 'apollo' ? API_APOLLO_SEARCH : API_CONTACTS_SEARCH_AI
+      const payload = { ...form }
+      if (!payload.prompt_personalizado?.trim()) delete payload.prompt_personalizado
+      const { data } = await api.post(endpoint, payload)
       setResults((data.data || []).map((c) => ({ ...c, _selected: false })))
       toast.success(`${data.total} contactos encontrados`)
     } catch (err) { toast.error(err.message) }
@@ -65,7 +76,7 @@ export default function BuscarContactos() {
   }
 
   const guardar = async () => {
-    const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => rest)
+    const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => ({ ...rest, rubro: rest.rubro || form.rubro }))
     if (!sel.length) return toast.error('Selecciona al menos un contacto')
     try {
       const { data } = await api.post(API_CONTACTS_SAVE, { contactos: sel })
@@ -102,11 +113,22 @@ export default function BuscarContactos() {
             <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: +e.target.value })} />
           </div>
         </div>
+        <div className="form-group">
+          <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
+          <input id="buscar-prompt" value={form.prompt_personalizado}
+            onChange={(e) => setForm({ ...form, prompt_personalizado: e.target.value })}
+            placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia, de empresas con más de 50 empleados" />
+        </div>
         <div className="flex gap-sm">
-          <Button onClick={() => buscar('ai')}>Buscar con IA</Button>
-          <Button variant="teal" onClick={() => buscar('apollo')}>Buscar con Apollo</Button>
+          <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
+          <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
+          <div style={{ flex: 1 }} />
+          <Button onClick={buscar}>Buscar</Button>
           <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>
         </div>
+        {metodo === 'apollo' && apolloOk === false && (
+          <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Apollo en Configuración</p>
+        )}
       </div>
 
       {results.length > 0 && (

@@ -23,6 +23,8 @@ export default function Historial() {
   const toast = useToast()
   const [contactos, setContactos] = useState([])
   const [filtro, setFiltro] = useState('')
+  const [filtroOrigen, setFiltroOrigen] = useState('todos')
+  const [filtroRubro, setFiltroRubro] = useState('')
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
@@ -47,15 +49,23 @@ export default function Historial() {
   }
 
   const filtrados = contactos.filter((c) => {
-    if (!filtro) return true
-    const q = filtro.toLowerCase()
-    return [c.nombre, c.empresa, c.cargo, c.email_empresarial, c.email_personal]
-      .some((v) => v?.toLowerCase().includes(q))
+    if (filtro) {
+      const q = filtro.toLowerCase()
+      const matchTexto = [c.nombre, c.empresa, c.cargo, c.email_empresarial, c.email_personal]
+        .some((v) => v?.toLowerCase().includes(q))
+      if (!matchTexto) return false
+    }
+    if (filtroOrigen !== 'todos' && c.origen !== filtroOrigen) return false
+    if (filtroRubro) {
+      const qr = filtroRubro.toLowerCase()
+      if (!c.cargo?.toLowerCase().includes(qr)) return false
+    }
+    return true
   })
 
   const totalPages = Math.ceil(filtrados.length / PAGE_SIZE) || 1
   const paginados = filtrados.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  useEffect(() => { setPage(1) }, [filtro])
+  useEffect(() => { setPage(1) }, [filtro, filtroOrigen, filtroRubro])
 
   if (loading) return <LoadingSpinner />
 
@@ -63,12 +73,27 @@ export default function Historial() {
     <div>
       <div className="card mb-md">
         <div className="flex-between mb-md">
-          <label htmlFor="hist-filtro" className="text-sm text-secondary">Buscar</label>
+          <label htmlFor="hist-filtro" className="text-sm text-secondary">Filtros</label>
           <Button size="sm" variant="ghost" disabled={!contactos.length} onClick={() => exportarContactosExcel(contactos)}>
-            📥 Exportar Excel
+            Exportar Excel
           </Button>
         </div>
-        <input id="hist-filtro" placeholder="Buscar por nombre, empresa, cargo o email..." value={filtro} onChange={(e) => setFiltro(e.target.value)} />
+        <div className="form-row">
+          <div className="form-group" style={{ flex: 2 }}>
+            <input id="hist-filtro" placeholder="Buscar por nombre, empresa, cargo o email..." value={filtro} onChange={(e) => setFiltro(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <select id="hist-origen" value={filtroOrigen} onChange={(e) => setFiltroOrigen(e.target.value)}>
+              <option value="todos">Todos los origenes</option>
+              <option value="ai">IA</option>
+              <option value="apollo">Apollo</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <input id="hist-rubro" placeholder="Filtrar por rubro/cargo..." value={filtroRubro} onChange={(e) => setFiltroRubro(e.target.value)} />
+          </div>
+        </div>
       </div>
       <div className="card historial-card">
         <div className="flex-between mb-md">
@@ -136,6 +161,7 @@ function HistorialRow({ contacto: c, expanded, onToggle, onDelete }) {
               <div className="detail-grid">
                 <div><span className="detail-label">Email Empresarial</span>{c.email_empresarial || '-'}</div>
                 <div><span className="detail-label">Cargo</span>{c.cargo || '-'}</div>
+                <div><span className="detail-label">Rubro</span>{c.rubro || '-'}</div>
                 <div><span className="detail-label">Tel. Empresa</span>{c.telefono_empresa || '-'}</div>
                 <div><span className="detail-label">Tel. Personal</span>{c.telefono_personal || '-'}</div>
                 <div><span className="detail-label">Fecha creacion</span>{c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '-'}</div>

@@ -157,6 +157,8 @@ async def buscar_personas(rubro: str, ubicacion: str, cantidad: int, api_key: st
             log.info("Primer contacto raw de Apollo: %s", personas[0] if personas else "vacío")
             log.info("Apollo busqueda: %d resultados para '%s' en '%s'", len(personas), rubro, ubicacion)
             contactos = [_mapear_persona(p) for p in personas]
+            for c in contactos:
+                c["rubro"] = rubro
             # Enriquecer los primeros 5 contactos con bulk_match para obtener email/telefono
             contactos = await _enriquecer_post_busqueda(contactos, api_key)
             return contactos

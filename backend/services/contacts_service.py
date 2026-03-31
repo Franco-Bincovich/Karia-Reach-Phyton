@@ -17,7 +17,32 @@ log = get_logger(__name__)
 _MAX_SELECCION = 50
 
 
-async def buscar_con_ia(rubro: str, ubicacion: str, cantidad: int = 10) -> list[dict]:
+async def _filtrar_duplicados(contactos: list[dict]) -> list[dict]:
+    """Filtra contactos cuyos emails ya existen en la base de datos."""
+    emails_existentes = await contacts_repository.listar_emails()
+    if not emails_existentes:
+        return contactos
+    nuevos = []
+    for c in contactos:
+        emp = (c.get("email_empresarial") or "").lower()
+        per = (c.get("email_personal") or "").lower()
+        # Si no tiene ningún email, no podemos saber si es duplicado
+        if not emp and not per:
+            nuevos.append(c)
+            continue
+        if (emp and emp in emails_existentes) or (per and per in emails_existentes):
+            continue
+        nuevos.append(c)
+    filtrados = len(contactos) - len(nuevos)
+    if filtrados:
+        log.info("Filtrados %d contactos duplicados de %d", filtrados, len(contactos))
+    return nuevos
+
+
+async def buscar_con_ia(
+    rubro: str, ubicacion: str, cantidad: int = 10,
+    prompt_personalizado: str | None = None,
+) -> list[dict]:
     """
     Busca contactos via IA y les asigna IDs temporales.
 
@@ -25,11 +50,13 @@ async def buscar_con_ia(rubro: str, ubicacion: str, cantidad: int = 10) -> list[
         rubro: industria o sector a buscar.
         ubicacion: zona geografica.
         cantidad: contactos a buscar (default 10).
+        prompt_personalizado: filtro adicional del usuario (opcional).
 
     Returns:
         Lista de contactos con id temporal ai-{timestamp}-{index}.
     """
-    resultados = await claude_client.buscar_contactos(rubro, ubicacion, cantidad)
+    resultados = await claude_client.buscar_contactos(rubro, ubicacion, cantidad, prompt_personalizado)
+    resultados = await _filtrar_duplicados(resultados)
     # IDs temporales para que el frontend pueda referenciar cada contacto
     # antes de persistirlo. Se limpian en guardar_seleccion() con c.pop("id")
     # cuando el usuario confirma la seleccion y se insertan en DB con UUID real.

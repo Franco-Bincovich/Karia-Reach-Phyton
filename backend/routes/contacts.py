@@ -13,7 +13,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from controllers import contacts_controller
 from logger import get_logger
@@ -28,9 +28,10 @@ router = APIRouter(prefix="/api/contacts", tags=["contacts"], redirect_slashes=F
 
 class SearchAIRequest(BaseModel):
     """Parametros para busqueda de contactos con IA."""
-    rubro: str = Field(..., min_length=2, description="Industria o sector")
-    ubicacion: str = Field(..., min_length=2, description="Zona geografica")
+    rubro: str = Field("", description="Industria o sector")
+    ubicacion: str = Field("", description="Zona geografica")
     cantidad: int = Field(10, ge=5, le=50, description="Cantidad de contactos")
+    prompt_personalizado: Optional[str] = Field(None, description="Filtro adicional del usuario")
 
 
 class ContactoBase(BaseModel):
@@ -38,11 +39,12 @@ class ContactoBase(BaseModel):
     nombre: Optional[str] = None
     empresa: str = Field(..., min_length=1)
     cargo: Optional[str] = None
-    email_empresarial: Optional[EmailStr] = None
-    email_personal: Optional[EmailStr] = None
+    email_empresarial: Optional[str] = None
+    email_personal: Optional[str] = None
     telefono_empresa: Optional[str] = None
     telefono_personal: Optional[str] = None
     linkedin_url: Optional[str] = None
+    rubro: Optional[str] = None
     confianza: Optional[float] = Field(None, ge=0.0, le=1.0)
     origen: str = "ai"
 
@@ -79,7 +81,7 @@ async def listar() -> dict:
 @search_limit
 async def buscar_con_ia(request: Request, body: SearchAIRequest) -> dict:
     """Busca contactos usando IA con web search."""
-    return await contacts_controller.buscar_con_ia(body.rubro, body.ubicacion, body.cantidad)
+    return await contacts_controller.buscar_con_ia(body.rubro, body.ubicacion, body.cantidad, body.prompt_personalizado)
 
 
 @router.post("/save-selection")

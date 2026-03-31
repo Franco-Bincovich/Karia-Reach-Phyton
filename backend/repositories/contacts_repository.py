@@ -35,6 +35,26 @@ def _normalizar_contacto(contacto: dict) -> dict:
     return contacto
 
 
+async def listar_emails() -> set[str]:
+    """Devuelve un set con todos los emails existentes (empresarial + personal)."""
+    try:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE)
+            .select("email_empresarial, email_personal").execute()
+        ))
+        emails = set()
+        for row in resp.data:
+            if row.get("email_empresarial"):
+                emails.add(row["email_empresarial"].lower())
+            if row.get("email_personal"):
+                emails.add(row["email_personal"].lower())
+        return emails
+    except Exception as exc:
+        log.error("Error listando emails: %s", exc)
+        return set()
+
+
 async def listar() -> list[dict]:
     """Devuelve todos los contactos ordenados por fecha de creacion desc."""
     try:
@@ -124,30 +144,49 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
     Returns:
         Lista de contactos efectivamente insertados.
     """
-    # Deduplicacion N+1: una query por contacto para verificar duplicados.
-    # Aceptable porque el service limita a max 50 contactos por seleccion.
-    emails_nuevos = []
+    # Filtrar emails que ya existen en una sola query
+    existentes = await listar_emails()
+    nuevos = []
     for c in contactos:
-        email = c.get("email_empresarial") or c.get("email_personal") or ""
-        existente = await buscar_por_email(email) if email else None
-        if not existente:
-            emails_nuevos.append(c)
+        emp = (c.get("email_empresarial") or "").lower()
+        per = (c.get("email_personal") or "").lower()
+        if (emp and emp in existentes) or (per and per in existentes):
+            continue
+        nuevos.append(c)
 
-    if not emails_nuevos:
+    if not nuevos:
         log.info("crear_bulk: todos los contactos ya existen, nada que insertar")
         return []
 
+    for c in nuevos:
+        _normalizar_contacto(c)
+    log.info("Emails existentes en DB: %s", list(existentes)[:10])
+    log.info("Emails a insertar: %s", [c.get("email_empresarial") for c in nuevos])
+    log.info("Primer contacto antes del insert: linkedin=%s", nuevos[0].get("linkedin_url") if nuevos else "vacío")
     try:
-        for c in emails_nuevos:
-            _normalizar_contacto(c)
-        log.info("Primer contacto antes del insert: linkedin=%s", emails_nuevos[0].get("linkedin_url") if emails_nuevos else "vacío")
         loop = asyncio.get_event_loop()
         resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).insert(emails_nuevos).execute()
+            get_supabase_client().table(_TABLE).insert(nuevos).execute()
         ))
         log.info("Bulk insert: %d/%d contactos creados", len(resp.data), len(contactos))
         return resp.data
     except Exception as exc:
+        if hasattr(exc, 'code') and exc.code == '23505':
+            log.warning("Duplicate key en bulk insert, insertando uno a uno")
+            insertados = []
+            for c in nuevos:
+                try:
+                    resp = await loop.run_in_executor(None, lambda c=c: (
+                        get_supabase_client().table(_TABLE).insert(c).execute()
+                    ))
+                    insertados.extend(resp.data)
+                except Exception as inner:
+                    if hasattr(inner, 'code') and inner.code == '23505':
+                        log.info("Duplicado ignorado: %s", c.get("email_empresarial"))
+                    else:
+                        log.error("Error insertando contacto: %s", inner)
+            log.info("Insert uno a uno: %d/%d contactos creados", len(insertados), len(nuevos))
+            return insertados
         log.error("Error en bulk insert de contactos: %s", exc)
         raise AppError("Error al crear contactos en bulk", "DB_CONTACTS_BULK", 500) from exc
 
