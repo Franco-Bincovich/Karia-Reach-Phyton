@@ -139,6 +139,9 @@ function HistorialRow({ contacto: c, expanded, onToggle, onDelete }) {
                 <div><span className="detail-label">Tel. Empresa</span>{c.telefono_empresa || '-'}</div>
                 <div><span className="detail-label">Tel. Personal</span>{c.telefono_personal || '-'}</div>
                 <div><span className="detail-label">Fecha creacion</span>{c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '-'}</div>
+                {c.linkedin_url && (
+                  <div><span className="detail-label">LinkedIn</span><a href={c.linkedin_url} target="_blank" rel="noopener noreferrer">Ver perfil</a></div>
+                )}
               </div>
             </div>
           </td>

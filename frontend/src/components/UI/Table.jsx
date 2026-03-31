@@ -12,7 +12,7 @@ export default function Table({ columns, data, onRowClick, emptyMessage = 'Sin d
           <tr>
             {columns.map((col) => (
               <th key={col.key} style={col.width ? { width: col.width } : {}}>
-                {col.label}
+                {col.headerRender ? col.headerRender() : col.label}
               </th>
             ))}
           </tr>

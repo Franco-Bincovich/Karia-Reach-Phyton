@@ -8,6 +8,7 @@ export const API_CONTACT_DELETE = (id) => `/api/contacts/${id}`
 export const API_COMPOSE_GENERATE = '/api/compose/generate'
 export const API_COMPOSE_FROM_CONTACTS = '/api/compose/generate-from-contacts'
 export const API_COMPOSE_TEMPLATES = '/api/compose/templates'
+export const API_COMPOSE_FORMAT_MANUAL = '/api/compose/format-manual'
 export const API_SEND_CAMPAIGN = '/api/send/campaign'
 export const API_SEND_CAMPAIGNS = '/api/send/campaigns'
 export const API_SEND_STATS = '/api/send/stats'

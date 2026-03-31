@@ -9,10 +9,13 @@ from services import compose_service
 
 
 async def generar_variantes(
-    descripcion: str, tono: str, objetivo: str, variantes: int
+    descripcion: str, tono: str, objetivo: str,
+    variantes: int, instruccion_adicional: str | None = None,
 ) -> dict:
     """Genera variantes de email via IA."""
-    emails = await compose_service.generar_variantes(descripcion, tono, objetivo, variantes)
+    emails = await compose_service.generar_variantes(
+        descripcion, tono, objetivo, variantes, instruccion_adicional,
+    )
     return {"data": emails, "total": len(emails)}
 
 
@@ -22,6 +25,12 @@ async def componer_desde_contactos(
     """Compone emails personalizados para contactos."""
     emails = await compose_service.componer_desde_contactos(contactos, producto, modo)
     return {"data": emails, "total": len(emails)}
+
+
+async def formatear_manual(asunto: str, cuerpo_natural: str) -> dict:
+    """Formatea texto natural a HTML de email via IA."""
+    resultado = await compose_service.formatear_manual(asunto, cuerpo_natural)
+    return {"data": resultado}
 
 
 async def listar_templates() -> dict:

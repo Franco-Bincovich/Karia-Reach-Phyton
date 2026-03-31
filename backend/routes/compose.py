@@ -4,13 +4,14 @@ Rutas de composicion — validacion con Pydantic, delegacion a controller.
 Endpoints:
   POST   /api/compose/generate
   POST   /api/compose/generate-from-contacts
+  POST   /api/compose/format-manual
   GET    /api/compose/templates
   POST   /api/compose/templates
   DELETE /api/compose/templates/{id}
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from uuid import UUID
 
@@ -51,6 +52,7 @@ class GenerateRequest(BaseModel):
     tono: Tono
     objetivo: Objetivo
     variantes: int = Field(3, ge=1, le=5)
+    instruccion_adicional: Optional[str] = Field(None, description="Instruccion libre opcional")
 
 
 class ContactoInput(BaseModel):
@@ -66,6 +68,13 @@ class GenerateFromContactsRequest(BaseModel):
     contactos: List[ContactoInput] = Field(..., min_length=1)
     producto: str = Field(..., min_length=5)
     modo: str = Field("formal", pattern="^(formal|casual|directo)$")
+
+
+class FormatManualRequest(BaseModel):
+    """Parametros para formateo manual de email."""
+    asunto: str = Field(..., min_length=5, description="Asunto del email")
+    cuerpo_natural: str = Field(..., min_length=10, description="Texto en lenguaje natural")
+    nombre_campana: str = Field(..., min_length=2, description="Nombre de la campana")
 
 
 class TemplateRequest(BaseModel):
@@ -84,7 +93,8 @@ class TemplateRequest(BaseModel):
 async def generar_variantes(request: Request, body: GenerateRequest) -> dict:
     """Genera variantes de email con IA."""
     return await compose_controller.generar_variantes(
-        body.descripcion, body.tono.value, body.objetivo.value, body.variantes,
+        body.descripcion, body.tono.value, body.objetivo.value,
+        body.variantes, body.instruccion_adicional,
     )
 
 
@@ -94,6 +104,13 @@ async def componer_desde_contactos(request: Request, body: GenerateFromContactsR
     """Compone emails personalizados para cada contacto."""
     contactos = [c.model_dump() for c in body.contactos]
     return await compose_controller.componer_desde_contactos(contactos, body.producto, body.modo)
+
+
+@router.post("/format-manual")
+@compose_limit
+async def formatear_manual(request: Request, body: FormatManualRequest) -> dict:
+    """Formatea texto natural a HTML de email profesional via IA."""
+    return await compose_controller.formatear_manual(body.asunto, body.cuerpo_natural)
 
 
 @router.get("/templates")

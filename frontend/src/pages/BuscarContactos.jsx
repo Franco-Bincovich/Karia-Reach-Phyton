@@ -8,21 +8,6 @@ import Modal from '../components/UI/Modal'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
 
-const COLUMNS = [
-  { key: '_check', label: '', width: '40px', render: (_, row) => (
-    <input type="checkbox" checked={row._selected || false} readOnly
-      aria-label={`Seleccionar ${row.nombre || 'contacto'}`} />
-  )},
-  { key: 'nombre', label: 'Nombre' },
-  { key: 'empresa', label: 'Empresa' },
-  { key: 'cargo', label: 'Cargo' },
-  { key: 'email_empresarial', label: 'Email Corp.' },
-  { key: 'email_personal', label: 'Email Personal' },
-  { key: 'telefono_empresa', label: 'Tel. Empresa' },
-  { key: 'telefono_personal', label: 'Tel. Personal' },
-  { key: 'confianza', label: 'Confianza', render: (v) => <ConfidenceBadge value={v} /> },
-]
-
 export default function BuscarContactos() {
   const toast = useToast()
   const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10 })
@@ -30,6 +15,33 @@ export default function BuscarContactos() {
   const [loading, setLoading] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
+
+  const allSelected = results.length > 0 && results.every((c) => c._selected)
+  const toggleAll = () => setResults((prev) => prev.map((c) => ({ ...c, _selected: !allSelected })))
+
+  const COLUMNS = [
+    { key: '_check', label: '', width: '40px',
+      headerRender: () => (
+        <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleccionar todos" />
+      ),
+      render: (_, row) => (
+        <input type="checkbox" checked={row._selected || false} readOnly
+          aria-label={`Seleccionar ${row.nombre || 'contacto'}`} />
+      ),
+    },
+    { key: 'nombre', label: 'Nombre' },
+    { key: 'empresa', label: 'Empresa' },
+    { key: 'cargo', label: 'Cargo' },
+    { key: 'email_empresarial', label: 'Email Corp.' },
+    { key: 'email_personal', label: 'Email Personal' },
+    { key: 'telefono_empresa', label: 'Tel. Empresa' },
+    { key: 'telefono_personal', label: 'Tel. Personal' },
+    { key: 'linkedin_url', label: 'LinkedIn', render: (v) => v
+      ? <a href={v} target="_blank" rel="noopener noreferrer" title="Ver LinkedIn">🔗</a>
+      : '-'
+    },
+    { key: 'confianza', label: 'Confianza', render: (v) => <ConfidenceBadge value={v} /> },
+  ]
 
   const buscar = async (source) => {
     if (!form.rubro.trim()) return toast.error('Ingresa un rubro o industria')

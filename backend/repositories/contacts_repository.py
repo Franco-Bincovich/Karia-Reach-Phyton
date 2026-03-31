@@ -2,7 +2,7 @@
 Repositorio de contactos — unico punto de acceso a la tabla `contacts`.
 
 Campos: id, nombre, empresa, cargo, email_empresarial, email_personal,
-telefono_empresa, telefono_personal, confianza (float 0-1),
+telefono_empresa, telefono_personal, linkedin_url, confianza (float 0-1),
 origen (ai/manual), created_at.
 """
 
@@ -20,16 +20,18 @@ log = get_logger(__name__)
 _TABLE = "contacts"
 
 
-_CAMPOS_STR_NO_NULL = ("email_empresarial", "email_personal", "telefono_empresa", "telefono_personal")
+_CAMPOS_STR_NO_NULL = ("email_empresarial", "email_personal", "telefono_empresa", "telefono_personal", "linkedin_url")
 
 
 def _normalizar_contacto(contacto: dict) -> dict:
-    """Prepara un contacto antes de insertar en DB: vacios a None y confianza a int."""
+    """Prepara un contacto antes de insertar en DB: vacios a None, confianza a int, campos extra fuera."""
     for campo in _CAMPOS_STR_NO_NULL:
         contacto[campo] = contacto.get(campo) or None
     val = contacto.get("confianza")
     if isinstance(val, float) and val <= 1.0:
         contacto["confianza"] = int(round(val * 100))
+    # Eliminar campos internos que no existen como columna en Supabase
+    contacto.pop("apollo_id", None)
     return contacto
 
 
@@ -138,6 +140,7 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
     try:
         for c in emails_nuevos:
             _normalizar_contacto(c)
+        log.info("Primer contacto antes del insert: linkedin=%s", emails_nuevos[0].get("linkedin_url") if emails_nuevos else "vacío")
         loop = asyncio.get_event_loop()
         resp = await loop.run_in_executor(None, lambda: (
             get_supabase_client().table(_TABLE).insert(emails_nuevos).execute()

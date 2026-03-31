@@ -26,23 +26,105 @@ def _headers(api_key: str) -> dict:
 
 def _mapear_persona(p: dict) -> dict:
     """Mapea un resultado de Apollo a nuestro schema de contacto."""
-    org = p.get("organization", {}) or {}
+    first = p.get("first_name", "") or ""
+    last = p.get("last_name", "") or ""
+    nombre = f"{first} {last}".strip() or p.get("name", "") or "Sin nombre"
     phones = p.get("phone_numbers", []) or []
-    # Prioridad: celular (mobile) como telefono_personal. Si no hay celular,
-    # el primer telefono disponible va a telefono_empresa. Nunca duplicar.
-    tel_personal = next((ph["sanitized_number"] for ph in phones if ph.get("type") == "mobile"), None)
-    tel_empresa = next((ph["sanitized_number"] for ph in phones), None) if not tel_personal else None
+    tel_empresa = phones[0].get("raw_number") if phones else None
     return {
-        "nombre": p.get("name", ""),
-        "empresa": org.get("name", p.get("organization_name", "")),
+        "apollo_id": p.get("id"),
+        "nombre": nombre,
+        "empresa": (p.get("organization") or {}).get("name", ""),
         "cargo": p.get("title", ""),
         "email_empresarial": p.get("email"),
-        "email_personal": p.get("personal_emails", [None])[0] if p.get("personal_emails") else None,
-        "telefono_empresa": tel_empresa or (org.get("primary_phone", {}) or {}).get("sanitized_number"),
-        "telefono_personal": tel_personal,
+        "email_personal": None,
+        "telefono_empresa": tel_empresa,
+        "telefono_personal": None,
+        "linkedin_url": p.get("linkedin_url"),
         "confianza": 0.9,
         "origen": "apollo",
     }
+
+
+async def _enriquecer_post_busqueda(
+    contactos: list[dict], api_key: str,
+) -> list[dict]:
+    """
+    Enriquece contactos con bulk_match despues de la busqueda.
+
+    Usa apollo_id de cada contacto mapeado para armar el request y
+    mergear los resultados. Maximo 5 por llamada.
+
+    Args:
+        contactos: lista de contactos ya mapeados (con apollo_id).
+        api_key: API key de Apollo.
+
+    Returns:
+        Lista de contactos con datos enriquecidos donde fue posible.
+    """
+    # Seleccionar los primeros 5 contactos que tengan apollo_id
+    enriquecibles = [c for c in contactos if c.get("apollo_id")][:5]
+    if not enriquecibles:
+        return contactos
+    details = [{"id": c["apollo_id"]} for c in enriquecibles]
+    try:
+        log.info("Iniciando enriquecimiento de %d contactos", len(details))
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{_BASE}/api/v1/people/bulk_match",
+                headers=_headers(api_key),
+                json={
+                    "reveal_personal_emails": True,
+                    "details": details,
+                },
+            )
+            log.info("bulk_match response status: %d", resp.status_code)
+            if resp.status_code != 200:
+                log.error("bulk_match error %d: %s", resp.status_code, resp.text[:300])
+            else:
+                log.info("bulk_match response body: %s", resp.text[:500])
+            resp.raise_for_status()
+            matches = resp.json().get("matches", [])
+            log.info("Primer match de bulk_match: %s", str(matches[0]) if matches else "vacío")
+    except Exception as exc:
+        log.warning("Error en enriquecimiento post-busqueda: %s", exc)
+        return contactos
+    # Indexar contactos por apollo_id para mergear resultados
+    por_id = {c.get("apollo_id"): c for c in contactos}
+    enriquecidos = 0
+    for match in matches:
+        if not match:
+            continue
+        person = match if "id" in match else match.get("person", {})
+        if not person:
+            continue
+        original = por_id.get(person.get("id"))
+        if not original:
+            continue
+        actualizado = False
+        nombre = person.get("name")
+        if nombre:
+            original["nombre"] = nombre
+            actualizado = True
+        linkedin = person.get("linkedin_url")
+        if linkedin and not original.get("linkedin_url"):
+            original["linkedin_url"] = linkedin
+            actualizado = True
+        email = person.get("email")
+        if email and not original.get("email_empresarial"):
+            original["email_empresarial"] = email
+        personal_emails = person.get("personal_emails") or []
+        if personal_emails and not original.get("email_personal"):
+            original["email_personal"] = personal_emails[0]
+        if actualizado:
+            enriquecidos += 1
+    log.info("Enriquecimiento post-busqueda: %d/%d contactos", enriquecidos, len(details))
+    if contactos:
+        log.info("Primer contacto después del merge: nombre=%s linkedin=%s email=%s",
+            contactos[0].get("nombre"),
+            contactos[0].get("linkedin_url"),
+            contactos[0].get("email_empresarial"))
+    return contactos
 
 
 async def buscar_personas(rubro: str, ubicacion: str, cantidad: int, api_key: str) -> list[dict]:
@@ -61,18 +143,23 @@ async def buscar_personas(rubro: str, ubicacion: str, cantidad: int, api_key: st
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
-                f"{_BASE}/api/v1/mixed_people/search",
+                f"{_BASE}/api/v1/mixed_people/api_search",
                 headers=_headers(api_key),
                 json={
                     "person_titles": [rubro],
-                    "person_locations": [ubicacion],
+                    "person_locations": ["Argentina"],
+                    "organization_locations": ["Argentina"],
                     "per_page": min(cantidad, 100),
                 },
             )
-        resp.raise_for_status()
-        personas = resp.json().get("people", [])
-        log.info("Apollo busqueda: %d resultados para '%s' en '%s'", len(personas), rubro, ubicacion)
-        return [_mapear_persona(p) for p in personas]
+            resp.raise_for_status()
+            personas = resp.json().get("people", [])
+            log.info("Primer contacto raw de Apollo: %s", personas[0] if personas else "vacío")
+            log.info("Apollo busqueda: %d resultados para '%s' en '%s'", len(personas), rubro, ubicacion)
+            contactos = [_mapear_persona(p) for p in personas]
+            # Enriquecer los primeros 5 contactos con bulk_match para obtener email/telefono
+            contactos = await _enriquecer_post_busqueda(contactos, api_key)
+            return contactos
     except httpx.HTTPStatusError as exc:
         log.error("Apollo API error %s: %s", exc.response.status_code, exc.response.text[:200])
         raise AppError("Error en busqueda Apollo", "APOLLO_SEARCH_ERROR", 502) from exc

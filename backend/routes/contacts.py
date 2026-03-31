@@ -16,7 +16,10 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from controllers import contacts_controller
+from logger import get_logger
 from middleware.rate_limiter import search_limit
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/contacts", tags=["contacts"], redirect_slashes=False)
 
@@ -32,13 +35,14 @@ class SearchAIRequest(BaseModel):
 
 class ContactoBase(BaseModel):
     """Datos base de un contacto."""
-    nombre: str = Field(..., min_length=1)
+    nombre: Optional[str] = None
     empresa: str = Field(..., min_length=1)
-    cargo: str = ""
+    cargo: Optional[str] = None
     email_empresarial: Optional[EmailStr] = None
     email_personal: Optional[EmailStr] = None
     telefono_empresa: Optional[str] = None
     telefono_personal: Optional[str] = None
+    linkedin_url: Optional[str] = None
     confianza: Optional[float] = Field(None, ge=0.0, le=1.0)
     origen: str = "ai"
 
@@ -79,9 +83,13 @@ async def buscar_con_ia(request: Request, body: SearchAIRequest) -> dict:
 
 
 @router.post("/save-selection")
-async def guardar_seleccion(body: SaveSelectionRequest) -> dict:
+async def guardar_seleccion(request: Request) -> dict:
     """Guarda una seleccion de contactos en la base de datos."""
+    raw = await request.json()
+    log.info("Body recibido en save-selection: %s", raw)
+    body = SaveSelectionRequest(**raw)
     contactos = [c.model_dump() for c in body.contactos]
+    log.info("Primer contacto post-Pydantic: %s", contactos[0] if contactos else "vacío")
     return await contacts_controller.guardar_seleccion(contactos)
 
 

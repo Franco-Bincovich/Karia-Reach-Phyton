@@ -13,7 +13,8 @@ log = get_logger(__name__)
 
 
 async def generar_variantes(
-    descripcion: str, tono: str, objetivo: str, variantes: int = 3
+    descripcion: str, tono: str, objetivo: str,
+    variantes: int = 3, instruccion_adicional: str | None = None,
 ) -> list[dict]:
     """
     Genera variantes de email via IA.
@@ -23,11 +24,14 @@ async def generar_variantes(
         tono: tono del email.
         objetivo: objetivo del email.
         variantes: cantidad de variantes (1-5).
+        instruccion_adicional: instruccion libre del usuario (opcional).
 
     Returns:
         Lista de dicts con 'asunto' y 'cuerpo'.
     """
-    resultados = await claude_client.generar_emails(descripcion, tono, objetivo, variantes)
+    resultados = await claude_client.generar_emails(
+        descripcion, tono, objetivo, variantes, instruccion_adicional,
+    )
     log.info("Generadas %d variantes de email", len(resultados))
     return resultados
 
@@ -49,6 +53,22 @@ async def componer_desde_contactos(
     resultados = await claude_client.componer_desde_contactos(contactos, producto, modo)
     log.info("Compuestos %d emails personalizados", len(resultados))
     return resultados
+
+
+async def formatear_manual(asunto: str, cuerpo_natural: str) -> dict:
+    """
+    Formatea texto natural a HTML de email via IA.
+
+    Args:
+        asunto: asunto del email.
+        cuerpo_natural: texto en lenguaje natural.
+
+    Returns:
+        Dict con 'asunto' y 'cuerpo_html'.
+    """
+    resultado = await claude_client.formatear_manual(asunto, cuerpo_natural)
+    log.info("Formateado email manual: %s", asunto[:50])
+    return resultado
 
 
 async def listar_templates() -> list[dict]:
