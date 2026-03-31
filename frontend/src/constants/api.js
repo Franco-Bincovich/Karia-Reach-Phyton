@@ -28,3 +28,5 @@ export const API_APOLLO_SEARCH = '/api/apollo/search'
 export const API_PERPLEXITY_STATUS = '/api/perplexity/status'
 export const API_PERPLEXITY_CONFIG = '/api/perplexity/config'
 export const API_PERPLEXITY_SEARCH = '/api/perplexity/search'
+export const API_CAMPANAS_PROGRAMADAS = '/api/campanas-programadas'
+export const API_CAMPANA_PROGRAMADA_CANCEL = (id) => `/api/campanas-programadas/${id}`
