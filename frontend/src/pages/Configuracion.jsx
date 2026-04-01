@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_APOLLO_STATUS, API_APOLLO_CONFIG, API_PERPLEXITY_STATUS, API_PERPLEXITY_CONFIG } from '../constants/api'
+import { API_APOLLO_STATUS, API_APOLLO_CONFIG, API_PERPLEXITY_STATUS, API_PERPLEXITY_CONFIG, API_APIFY_STATUS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Badge from '../components/UI/Badge'
 import ConfirmModal from '../components/UI/ConfirmModal'
@@ -12,6 +12,7 @@ export default function Configuracion() {
   const [apolloKey, setApolloKey] = useState('')
   const [perplexityStatus, setPerplexityStatus] = useState(false)
   const [perplexityKey, setPerplexityKey] = useState('')
+  const [apifyStatus, setApifyStatus] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showConfirm, setShowConfirm] = useState(null)
 
@@ -19,11 +20,12 @@ export default function Configuracion() {
 
   const checkStatus = async () => {
     try {
-      const [apollo, perplexity] = await Promise.all([
-        api.get(API_APOLLO_STATUS), api.get(API_PERPLEXITY_STATUS),
+      const [apollo, perplexity, apify] = await Promise.all([
+        api.get(API_APOLLO_STATUS), api.get(API_PERPLEXITY_STATUS), api.get(API_APIFY_STATUS),
       ])
       setApolloStatus(apollo.data.data?.configurado || false)
       setPerplexityStatus(perplexity.data.data?.configurado || false)
+      setApifyStatus(apify.data.data?.configurado || false)
     } catch (err) { toast.error(err.message) }
   }
 
@@ -99,6 +101,24 @@ export default function Configuracion() {
           <Button loading={loading} onClick={guardarPerplexity}>Guardar</Button>
           {perplexityStatus && <Button variant="danger" onClick={() => setShowConfirm('perplexity')}>Eliminar</Button>}
         </div>
+      </div>
+
+      <div className="card mb-md" style={{ maxWidth: 600 }}>
+        <div className="flex-between mb-md">
+          <h3>Apify</h3>
+          <Badge variant={apifyStatus ? 'success' : 'error'}>
+            {apifyStatus ? 'Configurado' : 'No configurado'}
+          </Badge>
+        </div>
+        <p className="text-sm text-secondary mb-md">
+          Apify permite enriquecer contactos automáticamente usando web scraping
+          de Google Maps, Instagram, Facebook, LinkedIn y más.
+        </p>
+        <p className="text-sm text-secondary">
+          {apifyStatus
+            ? 'La API key está configurada en el archivo .env del servidor.'
+            : 'Agregá APIFY_API_KEY en el archivo .env del servidor para activar Apify.'}
+        </p>
       </div>
 
       {showConfirm && (

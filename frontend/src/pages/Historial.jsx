@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACT_DELETE, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
+import { API_CONTACTS, API_CONTACT_DELETE, API_BLOQUES, API_BLOQUE_CONTACTOS, API_APIFY_ENRICH } from '../constants/api'
 import Button from '../components/UI/Button'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
@@ -16,7 +16,7 @@ const OrigenBadge = ({ value }) => {
   const isAI = value === 'ai' || value === 'apollo'
   const bg = isAI ? 'var(--row-selected)' : '#F3F4F6'
   const color = isAI ? 'var(--primary)' : 'var(--text-secondary)'
-  const label = value === 'ai' ? 'IA' : value === 'apollo' ? 'Apollo' : 'Manual'
+  const label = value === 'ai' ? 'IA' : value === 'apollo' ? 'Apollo' : value === 'apify' ? 'Apify' : value === 'perplexity' ? 'Perplexity' : 'Manual'
   return <span className="origen-badge" style={{ background: bg, color }}>{label}</span>
 }
 
@@ -31,6 +31,7 @@ export default function Historial() {
   const [expandedId, setExpandedId] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [enrichingId, setEnrichingId] = useState(null)
   const [showBloque, setShowBloque] = useState(false)
   const [nombreBloque, setNombreBloque] = useState('')
 
@@ -59,6 +60,17 @@ export default function Historial() {
       s.has(id) ? s.delete(id) : s.add(id)
       return s
     })
+  }
+
+  const enriquecer = async (id) => {
+    setEnrichingId(id)
+    try {
+      await api.post(API_APIFY_ENRICH, { contacto_id: id })
+      toast.success('Contacto enriquecido')
+      const { data } = await api.get(API_CONTACTS)
+      setContactos(data.data || [])
+    } catch (err) { toast.error(err.message) }
+    finally { setEnrichingId(null) }
   }
 
   const armarBloque = async () => {
@@ -111,6 +123,8 @@ export default function Historial() {
               <option value="todos">Todos los origenes</option>
               <option value="ai">IA</option>
               <option value="apollo">Apollo</option>
+              <option value="perplexity">Perplexity</option>
+              <option value="apify">Apify</option>
               <option value="manual">Manual</option>
             </select>
           </div>
@@ -134,15 +148,16 @@ export default function Historial() {
                 <th>Email Personal</th>
                 <th style={{ width: 90 }}>Confianza</th>
                 <th style={{ width: 80 }}>Origen</th>
-                <th style={{ width: 48 }} aria-label="Acciones"></th>
+                <th style={{ width: 72 }} aria-label="Acciones"></th>
               </tr>
             </thead>
             <tbody>
               {paginados.map((c) => (
                 <HistorialRow key={c.id} contacto={c} expanded={expandedId === c.id}
-                  checked={selected.has(c.id)}
+                  checked={selected.has(c.id)} enriching={enrichingId === c.id}
                   onCheck={() => toggleSelect(c.id)}
                   onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                  onEnrich={() => enriquecer(c.id)}
                   onDelete={() => setDeleteId(c.id)} />
               ))}
               {!paginados.length && <tr><td colSpan={8} className="empty-row">No hay contactos</td></tr>}
@@ -175,7 +190,8 @@ export default function Historial() {
   )
 }
 
-function HistorialRow({ contacto: c, expanded, checked, onCheck, onToggle, onDelete }) {
+function HistorialRow({ contacto: c, expanded, checked, enriching, onCheck, onToggle, onEnrich, onDelete }) {
+  const canEnrich = c.origen === 'apify'
   return (
     <>
       <tr className={expanded ? 'row-expanded' : ''}>
@@ -186,7 +202,13 @@ function HistorialRow({ contacto: c, expanded, checked, onCheck, onToggle, onDel
         <td className="email-cell">{c.email_personal || '-'}</td>
         <td><ConfidenceBadge value={c.confianza} /></td>
         <td><OrigenBadge value={c.origen} /></td>
-        <td><button className="delete-btn" title="Eliminar" onClick={onDelete}>&#128465;</button></td>
+        <td className="flex gap-sm" style={{ justifyContent: 'flex-end' }}>
+          {canEnrich && (
+            <button className="delete-btn" title="Enriquecer con Apify" disabled={enriching} onClick={onEnrich}
+              style={{ opacity: enriching ? 0.5 : 1 }}>{enriching ? '...' : '⚡'}</button>
+          )}
+          <button className="delete-btn" title="Eliminar" onClick={onDelete}>&#128465;</button>
+        </td>
       </tr>
       {expanded && (
         <tr className="detail-row">
@@ -201,6 +223,30 @@ function HistorialRow({ contacto: c, expanded, checked, onCheck, onToggle, onDel
                 <div><span className="detail-label">Fecha creacion</span>{c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '-'}</div>
                 {c.linkedin_url && (
                   <div><span className="detail-label">LinkedIn</span><a href={c.linkedin_url} target="_blank" rel="noopener noreferrer">Ver perfil</a></div>
+                )}
+                {c.instagram_username && (
+                  <div><span className="detail-label">Instagram</span><a href={`https://instagram.com/${c.instagram_username}`} target="_blank" rel="noopener noreferrer">@{c.instagram_username}</a></div>
+                )}
+                {c.facebook_url && (
+                  <div><span className="detail-label">Facebook</span><a href={c.facebook_url} target="_blank" rel="noopener noreferrer">Ver página</a></div>
+                )}
+                {c.whatsapp && (
+                  <div><span className="detail-label">WhatsApp</span><a href={`https://wa.me/${c.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">{c.whatsapp}</a></div>
+                )}
+                {c.twitter_url && (
+                  <div><span className="detail-label">Twitter</span><a href={c.twitter_url} target="_blank" rel="noopener noreferrer">Ver perfil</a></div>
+                )}
+                {c.tiktok_username && (
+                  <div><span className="detail-label">TikTok</span><a href={`https://tiktok.com/@${c.tiktok_username}`} target="_blank" rel="noopener noreferrer">@{c.tiktok_username}</a></div>
+                )}
+                {c.website && (
+                  <div><span className="detail-label">Website</span><a href={c.website} target="_blank" rel="noopener noreferrer">{(() => { try { return new URL(c.website).hostname.replace(/^www\./, '') } catch { return c.website } })()}</a></div>
+                )}
+                {c.direccion && (
+                  <div><span className="detail-label">Dirección</span>{c.direccion}</div>
+                )}
+                {(c.ciudad || c.pais) && (
+                  <div><span className="detail-label">Ubicación</span>{[c.ciudad, c.pais].filter(Boolean).join(', ')}</div>
                 )}
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
+import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS, API_APIFY_STATUS, API_APIFY_SEARCH, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
 import Modal from '../components/UI/Modal'
@@ -14,10 +14,12 @@ export default function BuscarContactos() {
   const [metodo, setMetodo] = useState('ai')
   const [apolloOk, setApolloOk] = useState(null)
   const [perplexityOk, setPerplexityOk] = useState(null)
+  const [apifyOk, setApifyOk] = useState(null)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
+  const [pais, setPais] = useState('')
   const [showBloque, setShowBloque] = useState(false)
   const [nombreBloque, setNombreBloque] = useState('')
 
@@ -28,6 +30,9 @@ export default function BuscarContactos() {
     api.get(API_PERPLEXITY_STATUS)
       .then(({ data }) => setPerplexityOk(!!data?.data?.configurado))
       .catch(() => setPerplexityOk(false))
+    api.get(API_APIFY_STATUS)
+      .then(({ data }) => setApifyOk(!!data?.data?.configurado))
+      .catch(() => setApifyOk(false))
   }, [])
 
   const allSelected = results.length > 0 && results.every((c) => c._selected)
@@ -56,11 +61,13 @@ export default function BuscarContactos() {
     console.log("Método seleccionado:", metodo, "perplexityOk:", perplexityOk, "apolloOk:", apolloOk)
     if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
     if (metodo === 'perplexity' && !perplexityOk) return toast.error('Configurá tu API key de Perplexity en Configuración')
+    if (metodo === 'apify' && !apifyOk) return toast.error('Configurá tu API key de Apify en Configuración')
     setLoading(true)
     try {
-      const endpoints = { ai: API_CONTACTS_SEARCH_AI, apollo: API_APOLLO_SEARCH, perplexity: API_PERPLEXITY_SEARCH }
+      const endpoints = { ai: API_CONTACTS_SEARCH_AI, apollo: API_APOLLO_SEARCH, perplexity: API_PERPLEXITY_SEARCH, apify: API_APIFY_SEARCH }
       const endpoint = endpoints[metodo]
       const payload = { ...form }
+      if (metodo === 'apify') payload.pais = pais
       if (!payload.prompt_personalizado?.trim()) delete payload.prompt_personalizado
       const { data } = await api.post(endpoint, payload)
       setResults((data.data || []).map((c) => ({ ...c, _selected: false })))
@@ -130,6 +137,14 @@ export default function BuscarContactos() {
             <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: +e.target.value })} />
           </div>
         </div>
+        {metodo === 'apify' && (
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="buscar-pais">País</label>
+              <input id="buscar-pais" value={pais} onChange={(e) => setPais(e.target.value)} placeholder="Ej: Argentina, Chile, Uruguay..." />
+            </div>
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
           <input id="buscar-prompt" value={form.prompt_personalizado}
@@ -140,6 +155,7 @@ export default function BuscarContactos() {
           <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
           <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
           <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>
+          <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>
           <div style={{ flex: 1 }} />
           <Button onClick={() => { console.log("CLICK BUSCAR - metodo:", metodo); buscar(); }}>Buscar</Button>
           <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>
@@ -149,6 +165,9 @@ export default function BuscarContactos() {
         )}
         {metodo === 'perplexity' && perplexityOk === false && (
           <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Perplexity en Configuración</p>
+        )}
+        {metodo === 'apify' && apifyOk === false && (
+          <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Apify en Configuración</p>
         )}
       </div>
 

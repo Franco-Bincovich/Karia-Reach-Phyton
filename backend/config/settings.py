@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     JWT_SECRET: str = ""
     JWT_EXPIRATION_HOURS: int = 8
 
+    # --- Apify ---
+    APIFY_API_KEY: str = ""
+
     # --- Cifrado de API keys de terceros en DB ---
     ENCRYPTION_KEY: str = ""
 

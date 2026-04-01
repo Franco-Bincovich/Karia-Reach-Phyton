@@ -21,7 +21,7 @@ from logger import get_logger
 from middleware.auth import AuthMiddleware
 from middleware.error_handler import AppError, app_error_handler, generic_error_handler
 from middleware.rate_limiter import limiter
-from routes import apollo, auth, bloques, campanas_programadas, compose, contacts, perplexity, replies, send, tracking
+from routes import apollo, apify, auth, bloques, compose, contacts, perplexity, replies, send, tracking
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -62,14 +62,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
     signal.signal(signal.SIGTERM, handle_sigterm)
 
-    # Scheduler de campanas programadas
-    from scheduler import iniciar as iniciar_scheduler, detener as detener_scheduler  # noqa: PLC0415
-    await iniciar_scheduler()
-
     log.info("Karia Reach Backend listo en puerto %s", settings.PORT)
     yield
-
-    detener_scheduler()
     log.info("Karia Reach Backend cerrado")
 
 
@@ -137,8 +131,8 @@ app.include_router(replies.router)
 app.include_router(apollo.router)
 app.include_router(tracking.router)
 app.include_router(bloques.router)
-app.include_router(campanas_programadas.router)
 app.include_router(perplexity.router)
+app.include_router(apify.router)
 
 
 @app.get("/health", tags=["health"])
