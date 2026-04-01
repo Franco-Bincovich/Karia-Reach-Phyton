@@ -19,6 +19,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from controllers import compose_controller
+from middleware.auth import get_usuario_id_from_request
 from middleware.rate_limiter import compose_limit
 
 router = APIRouter(prefix="/api/compose", tags=["compose"])
@@ -114,15 +115,17 @@ async def formatear_manual(request: Request, body: FormatManualRequest) -> dict:
 
 
 @router.get("/templates")
-async def listar_templates() -> dict:
+async def listar_templates(request: Request) -> dict:
     """Lista todos los templates guardados."""
-    return await compose_controller.listar_templates()
+    uid = get_usuario_id_from_request(request)
+    return await compose_controller.listar_templates(uid)
 
 
 @router.post("/templates")
-async def guardar_template(body: TemplateRequest) -> dict:
+async def guardar_template(request: Request, body: TemplateRequest) -> dict:
     """Guarda un template nuevo."""
-    return await compose_controller.guardar_template(body.model_dump())
+    uid = get_usuario_id_from_request(request)
+    return await compose_controller.guardar_template(body.model_dump(), uid)
 
 
 @router.delete("/templates/{template_id}")

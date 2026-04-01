@@ -35,14 +35,16 @@ def _normalizar_contacto(contacto: dict) -> dict:
     return contacto
 
 
-async def listar_emails() -> set[str]:
+async def listar_emails(usuario_id: str = None) -> set[str]:
     """Devuelve un set con todos los emails existentes (empresarial + personal)."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE)
-            .select("email_empresarial, email_personal").execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("email_empresarial, email_personal")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         emails = set()
         for row in resp.data:
             if row.get("email_empresarial"):
@@ -55,26 +57,32 @@ async def listar_emails() -> set[str]:
         return set()
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los contactos ordenados por fecha de creacion desc."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.data
     except Exception as exc:
         log.error("Error listando contactos: %s", exc)
         raise AppError("Error al listar contactos", "DB_CONTACTS_LIST", 500) from exc
 
 
-async def contar() -> int:
+async def contar(usuario_id: str = None) -> int:
     """Devuelve el total de contactos (query liviana, solo cuenta)."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).select("id", count="exact").execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("id", count="exact")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando contactos: %s", exc)

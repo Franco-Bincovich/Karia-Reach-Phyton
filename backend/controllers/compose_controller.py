@@ -33,15 +33,15 @@ async def formatear_manual(asunto: str, cuerpo_natural: str) -> dict:
     return {"data": resultado}
 
 
-async def listar_templates() -> dict:
+async def listar_templates(usuario_id: str = None) -> dict:
     """Devuelve todos los templates."""
-    templates = await compose_service.listar_templates()
+    templates = await compose_service.listar_templates(usuario_id)
     return {"data": templates, "total": len(templates)}
 
 
-async def guardar_template(template: dict) -> dict:
+async def guardar_template(template: dict, usuario_id: str = None) -> dict:
     """Guarda un template nuevo."""
-    creado = await compose_service.guardar_template(template)
+    creado = await compose_service.guardar_template(template, usuario_id)
     return {"data": creado}
 
 

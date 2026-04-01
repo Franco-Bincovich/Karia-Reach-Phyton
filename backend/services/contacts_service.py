@@ -17,9 +17,9 @@ log = get_logger(__name__)
 _MAX_SELECCION = 50
 
 
-async def _filtrar_duplicados(contactos: list[dict]) -> list[dict]:
+async def _filtrar_duplicados(contactos: list[dict], usuario_id: str = None) -> list[dict]:
     """Filtra contactos cuyos emails ya existen en la base de datos."""
-    emails_existentes = await contacts_repository.listar_emails()
+    emails_existentes = await contacts_repository.listar_emails(usuario_id)
     if not emails_existentes:
         return contactos
     nuevos = []
@@ -42,6 +42,7 @@ async def _filtrar_duplicados(contactos: list[dict]) -> list[dict]:
 async def buscar_con_ia(
     rubro: str, ubicacion: str, cantidad: int = 10,
     prompt_personalizado: str | None = None,
+    usuario_id: str = None,
 ) -> list[dict]:
     """
     Busca contactos via IA y les asigna IDs temporales.
@@ -56,7 +57,7 @@ async def buscar_con_ia(
         Lista de contactos con id temporal ai-{timestamp}-{index}.
     """
     resultados = await claude_client.buscar_contactos(rubro, ubicacion, cantidad, prompt_personalizado)
-    resultados = await _filtrar_duplicados(resultados)
+    resultados = await _filtrar_duplicados(resultados, usuario_id)
     # IDs temporales para que el frontend pueda referenciar cada contacto
     # antes de persistirlo. Se limpian en guardar_seleccion() con c.pop("id")
     # cuando el usuario confirma la seleccion y se insertan en DB con UUID real.
@@ -68,7 +69,7 @@ async def buscar_con_ia(
     return resultados
 
 
-async def guardar_seleccion(contactos: list[dict]) -> list[dict]:
+async def guardar_seleccion(contactos: list[dict], usuario_id: str = None) -> list[dict]:
     """
     Guarda una seleccion de contactos en la base de datos.
 
@@ -90,10 +91,12 @@ async def guardar_seleccion(contactos: list[dict]) -> list[dict]:
     for c in contactos:
         c.pop("id", None)
         c.setdefault("origen", "ai")
+        if usuario_id:
+            c["usuario_id"] = usuario_id
     return await contacts_repository.crear_bulk(contactos)
 
 
-async def agregar_manual(contacto: dict) -> dict:
+async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
     """
     Agrega un contacto ingresado manualmente.
 
@@ -105,12 +108,14 @@ async def agregar_manual(contacto: dict) -> dict:
     """
     contacto["confianza"] = 1.0
     contacto["origen"] = "manual"
+    if usuario_id:
+        contacto["usuario_id"] = usuario_id
     return await contacts_repository.crear(contacto)
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los contactos."""
-    return await contacts_repository.listar()
+    return await contacts_repository.listar(usuario_id)
 
 
 async def eliminar(id: str) -> bool:

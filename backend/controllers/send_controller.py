@@ -11,22 +11,23 @@ from services import send_service
 
 
 async def enviar_campana(
-    nombre: str, template_id: str, contact_ids: list[str], scheduled_at: Optional[str]
+    nombre: str, template_id: str, contact_ids: list[str],
+    scheduled_at: Optional[str], usuario_id: str = None,
 ) -> dict:
     """Crea y ejecuta una campana de email."""
-    campana = await send_service.enviar_campana(nombre, template_id, contact_ids, scheduled_at)
+    campana = await send_service.enviar_campana(nombre, template_id, contact_ids, scheduled_at, usuario_id)
     return {"data": campana}
 
 
-async def listar_campanas() -> dict:
+async def listar_campanas(usuario_id: str = None) -> dict:
     """Devuelve todas las campanas."""
-    campanas = await send_service.listar_campanas()
+    campanas = await send_service.listar_campanas(usuario_id)
     return {"data": campanas, "total": len(campanas)}
 
 
-async def obtener_dashboard() -> dict:
+async def obtener_dashboard(usuario_id: str = None) -> dict:
     """Devuelve el dashboard con totales del sistema."""
-    dashboard = await send_service.obtener_dashboard()
+    dashboard = await send_service.obtener_dashboard(usuario_id)
     return {"data": dashboard}
 
 

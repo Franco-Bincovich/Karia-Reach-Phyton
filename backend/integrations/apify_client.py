@@ -22,6 +22,13 @@ _POLL_INTERVAL = 3  # segundos entre checks
 _TIMEOUT = 300  # segundos max de espera
 
 
+async def _get_api_key() -> str:
+    """Obtiene API key de DB (integraciones) o .env como fallback."""
+    from repositories import integrations_repository
+    key = await integrations_repository.obtener_api_key("apify")
+    return key or settings.APIFY_API_KEY
+
+
 async def run_actor(actor_id: str, input_data: dict) -> dict:
     """
     Ejecuta un Actor de Apify y espera a que termine.
@@ -37,7 +44,8 @@ async def run_actor(actor_id: str, input_data: dict) -> dict:
         AppError: si el run falla o excede el timeout.
     """
     url = f"{_BASE}/acts/{actor_id}/runs"
-    headers = {"Authorization": f"Bearer {settings.APIFY_API_KEY}"}
+    api_key = await _get_api_key()
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -90,7 +98,8 @@ async def get_dataset_items(dataset_id: str) -> list[dict]:
         Lista de dicts con los resultados.
     """
     url = f"{_BASE}/datasets/{dataset_id}/items"
-    headers = {"Authorization": f"Bearer {settings.APIFY_API_KEY}"}
+    api_key = await _get_api_key()
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:

@@ -15,28 +15,28 @@ log = get_logger(__name__)
 _SERVICIO = "perplexity"
 
 
-async def esta_configurado() -> bool:
+async def esta_configurado(usuario_id: str = None) -> bool:
     """Verifica si hay una API key de Perplexity activa."""
-    key = await integrations_repository.obtener_api_key(_SERVICIO)
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
     return key is not None
 
 
-async def guardar_key(api_key: str) -> dict:
+async def guardar_key(api_key: str, usuario_id: str = None) -> dict:
     """Guarda la API key de Perplexity."""
-    return await integrations_repository.guardar_api_key(_SERVICIO, api_key)
+    return await integrations_repository.guardar_api_key(_SERVICIO, api_key, usuario_id)
 
 
-async def eliminar_key() -> bool:
+async def eliminar_key(usuario_id: str = None) -> bool:
     """Elimina (desactiva) la API key de Perplexity."""
-    eliminado = await integrations_repository.eliminar_api_key(_SERVICIO)
+    eliminado = await integrations_repository.eliminar_api_key(_SERVICIO, usuario_id)
     if not eliminado:
         raise AppError("No hay API key de Perplexity configurada", "PERPLEXITY_NOT_CONFIGURED", 404)
     return True
 
 
-async def _obtener_key() -> str:
+async def _obtener_key(usuario_id: str = None) -> str:
     """Obtiene la API key o lanza error si no esta configurada."""
-    key = await integrations_repository.obtener_api_key(_SERVICIO)
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
     if not key:
         raise AppError(
             "Perplexity no esta configurado. Guarda tu API key primero.",
@@ -47,7 +47,7 @@ async def _obtener_key() -> str:
 
 async def buscar_contactos(
     rubro: str, ubicacion: str, cantidad: int = 10,
-    prompt_personalizado: str | None = None,
+    prompt_personalizado: str | None = None, usuario_id: str = None,
 ) -> list[dict]:
     """
     Busca contactos via Perplexity API.
@@ -61,12 +61,12 @@ async def buscar_contactos(
     Returns:
         Lista de contactos mapeados, filtrados por duplicados.
     """
-    key = await _obtener_key()
+    key = await _obtener_key(usuario_id)
     resultados = await perplexity_client.buscar_contactos(
         rubro, ubicacion, cantidad, prompt_personalizado, key,
     )
     # Filtrar contactos que ya existen por email
-    emails_existentes = await contacts_repository.listar_emails()
+    emails_existentes = await contacts_repository.listar_emails(usuario_id)
     if emails_existentes:
         nuevos = []
         for c in resultados:

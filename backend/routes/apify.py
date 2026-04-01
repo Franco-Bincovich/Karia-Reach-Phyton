@@ -10,11 +10,17 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import apify_controller
+from middleware.auth import get_usuario_id_from_request
 
 router = APIRouter(prefix="/api/apify", tags=["apify"])
 
 
 # --- Request models ---
+
+class ConfigRequest(BaseModel):
+    """Body para guardar API key de Apify."""
+    api_key: str = Field(..., min_length=10)
+
 
 class EnriquecerRequest(BaseModel):
     """Body para enriquecer un contacto existente."""
@@ -45,5 +51,20 @@ async def buscar(request: Request, body: BuscarRequest) -> dict:
 
 @router.get("/status")
 async def status(request: Request) -> dict:
-    """Verifica si Apify esta configurado (APIFY_API_KEY en .env)."""
-    return await apify_controller.status()
+    """Verifica si Apify esta configurado (DB o .env)."""
+    uid = get_usuario_id_from_request(request)
+    return await apify_controller.status(uid)
+
+
+@router.post("/config")
+async def guardar_config(request: Request, body: ConfigRequest) -> dict:
+    """Guarda la API key de Apify."""
+    uid = get_usuario_id_from_request(request)
+    return await apify_controller.guardar_config(body.api_key, uid)
+
+
+@router.delete("/config")
+async def eliminar_config(request: Request) -> dict:
+    """Elimina la API key de Apify."""
+    uid = get_usuario_id_from_request(request)
+    return await apify_controller.eliminar_config(uid)

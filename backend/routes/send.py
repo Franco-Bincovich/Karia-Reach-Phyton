@@ -17,6 +17,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import send_controller
+from middleware.auth import get_usuario_id_from_request
 from middleware.rate_limiter import send_limit
 
 router = APIRouter(prefix="/api/send", tags=["send"])
@@ -38,17 +39,20 @@ class CampaignRequest(BaseModel):
 @send_limit
 async def enviar_campana(request: Request, body: CampaignRequest) -> dict:
     """Crea y ejecuta una campana de email."""
+    uid = get_usuario_id_from_request(request)
     return await send_controller.enviar_campana(
         body.nombre, str(body.template_id),
         [str(cid) for cid in body.contact_ids],
         body.scheduled_at.isoformat() if body.scheduled_at else None,
+        uid,
     )
 
 
 @router.get("/campaigns")
-async def listar_campanas() -> dict:
+async def listar_campanas(request: Request) -> dict:
     """Lista todas las campanas."""
-    return await send_controller.listar_campanas()
+    uid = get_usuario_id_from_request(request)
+    return await send_controller.listar_campanas(uid)
 
 
 @router.get("/campaigns/{campaign_id}/stats")
@@ -64,6 +68,7 @@ async def estadisticas_globales() -> dict:
 
 
 @router.get("/dashboard")
-async def obtener_dashboard() -> dict:
+async def obtener_dashboard(request: Request) -> dict:
     """Devuelve el dashboard con totales del sistema."""
-    return await send_controller.obtener_dashboard()
+    uid = get_usuario_id_from_request(request)
+    return await send_controller.obtener_dashboard(uid)

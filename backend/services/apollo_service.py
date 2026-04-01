@@ -15,28 +15,28 @@ log = get_logger(__name__)
 _SERVICIO = "apollo"
 
 
-async def esta_configurado() -> bool:
+async def esta_configurado(usuario_id: str = None) -> bool:
     """Verifica si hay una API key de Apollo activa."""
-    key = await integrations_repository.obtener_api_key(_SERVICIO)
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
     return key is not None
 
 
-async def guardar_key(api_key: str) -> dict:
+async def guardar_key(api_key: str, usuario_id: str = None) -> dict:
     """Guarda la API key de Apollo."""
-    return await integrations_repository.guardar_api_key(_SERVICIO, api_key)
+    return await integrations_repository.guardar_api_key(_SERVICIO, api_key, usuario_id)
 
 
-async def eliminar_key() -> bool:
+async def eliminar_key(usuario_id: str = None) -> bool:
     """Elimina (desactiva) la API key de Apollo."""
-    eliminado = await integrations_repository.eliminar_api_key(_SERVICIO)
+    eliminado = await integrations_repository.eliminar_api_key(_SERVICIO, usuario_id)
     if not eliminado:
         raise AppError("No hay API key de Apollo configurada", "APOLLO_NOT_CONFIGURED", 404)
     return True
 
 
-async def _obtener_key() -> str:
+async def _obtener_key(usuario_id: str = None) -> str:
     """Obtiene la API key o lanza error si no esta configurada."""
-    key = await integrations_repository.obtener_api_key(_SERVICIO)
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
     if not key:
         raise AppError(
             "Apollo no esta configurado. Guarda tu API key primero.",
@@ -45,7 +45,7 @@ async def _obtener_key() -> str:
     return key
 
 
-async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10) -> list[dict]:
+async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10, usuario_id: str = None) -> list[dict]:
     """
     Busca contactos via Apollo API.
 
@@ -57,10 +57,10 @@ async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10) -> li
     Returns:
         Lista de contactos mapeados a nuestro schema.
     """
-    key = await _obtener_key()
+    key = await _obtener_key(usuario_id)
     resultados = await apollo_client.buscar_personas(rubro, ubicacion, cantidad, key)
     # Filtrar contactos que ya existen por email
-    emails_existentes = await contacts_repository.listar_emails()
+    emails_existentes = await contacts_repository.listar_emails(usuario_id)
     if emails_existentes:
         nuevos = []
         for c in resultados:
@@ -79,7 +79,7 @@ async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10) -> li
     return resultados
 
 
-async def enriquecer_contactos(contactos: list[dict]) -> list[dict]:
+async def enriquecer_contactos(contactos: list[dict], usuario_id: str = None) -> list[dict]:
     """
     Enriquece contactos existentes con datos de Apollo.
 
@@ -89,7 +89,7 @@ async def enriquecer_contactos(contactos: list[dict]) -> list[dict]:
     Returns:
         Lista de contactos enriquecidos.
     """
-    key = await _obtener_key()
+    key = await _obtener_key(usuario_id)
     if len(contactos) == 1:
         c = contactos[0]
         return [await apollo_client.enriquecer_contacto(c.get("nombre", ""), c.get("empresa", ""), key)]

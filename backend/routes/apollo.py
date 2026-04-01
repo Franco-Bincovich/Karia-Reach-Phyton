@@ -15,6 +15,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import apollo_controller
+from middleware.auth import get_usuario_id_from_request
 from middleware.rate_limiter import apollo_limit
 
 router = APIRouter(prefix="/api/apollo", tags=["apollo"])
@@ -48,33 +49,38 @@ class EnrichRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("/status")
-async def status() -> dict:
+async def status(request: Request) -> dict:
     """Verifica si Apollo esta configurado."""
-    return await apollo_controller.status()
+    uid = get_usuario_id_from_request(request)
+    return await apollo_controller.status(uid)
 
 
 @router.post("/config")
-async def guardar_config(body: ConfigRequest) -> dict:
+async def guardar_config(request: Request, body: ConfigRequest) -> dict:
     """Guarda la API key de Apollo."""
-    return await apollo_controller.guardar_config(body.api_key)
+    uid = get_usuario_id_from_request(request)
+    return await apollo_controller.guardar_config(body.api_key, uid)
 
 
 @router.delete("/config")
-async def eliminar_config() -> dict:
+async def eliminar_config(request: Request) -> dict:
     """Elimina la API key de Apollo."""
-    return await apollo_controller.eliminar_config()
+    uid = get_usuario_id_from_request(request)
+    return await apollo_controller.eliminar_config(uid)
 
 
 @router.post("/search")
 @apollo_limit
 async def buscar(request: Request, body: SearchRequest) -> dict:
     """Busca contactos en Apollo."""
-    return await apollo_controller.buscar(body.rubro, body.ubicacion, body.cantidad)
+    uid = get_usuario_id_from_request(request)
+    return await apollo_controller.buscar(body.rubro, body.ubicacion, body.cantidad, uid)
 
 
 @router.post("/enrich")
 @apollo_limit
 async def enriquecer(request: Request, body: EnrichRequest) -> dict:
     """Enriquece contactos con datos de Apollo."""
+    uid = get_usuario_id_from_request(request)
     contactos = [c.model_dump() for c in body.contactos]
-    return await apollo_controller.enriquecer(contactos)
+    return await apollo_controller.enriquecer(contactos, uid)

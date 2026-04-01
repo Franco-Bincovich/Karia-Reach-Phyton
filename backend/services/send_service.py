@@ -88,7 +88,8 @@ async def _registrar_resultados(
 
 
 async def enviar_campana(
-    nombre: str, template_id: str, contact_ids: list[str], scheduled_at: Optional[str] = None
+    nombre: str, template_id: str, contact_ids: list[str],
+    scheduled_at: Optional[str] = None, usuario_id: str = None,
 ) -> dict:
     """
     Crea y ejecuta una campana de email (orquestador).
@@ -97,20 +98,23 @@ async def enviar_campana(
     → gmail bulk → _registrar_resultados → actualiza metricas.
     Sin rollback: si falla a mitad, status queda "sending".
     """
-    templates = await templates_repository.listar()
+    templates = await templates_repository.listar(usuario_id)
     template = next((t for t in templates if t["id"] == template_id), None)
     if not template:
         raise AppError("Template no encontrado", "TEMPLATE_NOT_FOUND", 404)
 
-    todos = await contacts_repository.listar()
+    todos = await contacts_repository.listar(usuario_id)
     contactos = [c for c in todos if c["id"] in contact_ids]
     if not contactos:
         raise AppError("No se encontraron contactos validos", "CONTACTS_NOT_FOUND", 404)
 
-    campana = await campaigns_repository.crear({
+    camp_data = {
         "nombre": nombre, "template_id": template_id, "contacts_count": len(contactos),
         "status": "sending", "sent_count": 0, "failed_count": 0, "scheduled_at": scheduled_at,
-    })
+    }
+    if usuario_id:
+        camp_data["usuario_id"] = usuario_id
+    campana = await campaigns_repository.crear(camp_data)
     emails, contacto_por_email = _preparar_emails(contactos, template, campana["id"])
     resultados_gmail = await gmail_client.enviar_bulk(emails)
     metricas = await _registrar_resultados(campana["id"], emails, contacto_por_email, resultados_gmail)
@@ -121,18 +125,18 @@ async def enviar_campana(
     return campana
 
 
-async def listar_campanas() -> list[dict]:
+async def listar_campanas(usuario_id: str = None) -> list[dict]:
     """Devuelve todas las campanas."""
-    return await campaigns_repository.listar()
+    return await campaigns_repository.listar(usuario_id)
 
 
-async def obtener_dashboard() -> dict:
+async def obtener_dashboard(usuario_id: str = None) -> dict:
     """Genera un resumen general con queries COUNT (no trae todos los registros)."""
     return {
-        "contactos": await contacts_repository.contar(),
-        "templates": await templates_repository.contar(),
-        "campanas": await campaigns_repository.contar(),
-        "emails_enviados": await campaigns_repository.sumar_enviados(),
+        "contactos": await contacts_repository.contar(usuario_id),
+        "templates": await templates_repository.contar(usuario_id),
+        "campanas": await campaigns_repository.contar(usuario_id),
+        "emails_enviados": await campaigns_repository.sumar_enviados(usuario_id),
     }
 
 

@@ -6,6 +6,7 @@ como JWT firmado con JWT_SECRET (para el frontend).
 """
 
 import hmac
+from typing import Optional
 
 import jwt
 from fastapi import Request, Response
@@ -22,6 +23,36 @@ PUBLIC_PATHS = {"/health"}
 # /track/ es publico porque los pixels se cargan desde clientes de correo.
 # /api/auth/ es publico para permitir login sin token previo.
 PUBLIC_PREFIXES = ("/track/", "/api/auth/")
+
+
+def get_rol_from_request(request: Request) -> str:
+    """Extrae el rol del JWT del request. Devuelve 'user' si no se puede determinar."""
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip()
+    if not token or not settings.JWT_SECRET:
+        return "user"
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"],
+                             audience="karia-reach", issuer="karia-reach-backend")
+        return payload.get("rol", "user")
+    except jwt.PyJWTError:
+        return "user"
+
+
+def get_usuario_id_from_request(request: Request) -> Optional[str]:
+    """Extrae el usuario_id del JWT del request."""
+    settings = get_settings()
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip()
+    if not token or not settings.JWT_SECRET:
+        return None
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"],
+                             audience="karia-reach", issuer="karia-reach-backend")
+        return payload.get("usuario_id")
+    except jwt.PyJWTError:
+        return None
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

@@ -52,37 +52,41 @@ def _descifrar(valor: str) -> str:
         return valor
 
 
-async def guardar_api_key(servicio: str, api_key: str) -> dict:
+async def guardar_api_key(servicio: str, api_key: str, usuario_id: str = None) -> dict:
     """
     Guarda o actualiza la API key cifrada de un servicio.
 
-    Usa upsert por servicio (UNIQUE constraint) para insertar o actualizar.
+    Usa upsert por servicio+usuario_id para insertar o actualizar.
     """
     try:
         cifrada = _cifrar(api_key)
+        data = {"servicio": servicio, "api_key": cifrada, "activo": True}
+        if usuario_id:
+            data["usuario_id"] = usuario_id
         loop = asyncio.get_event_loop()
         resp = await loop.run_in_executor(None, lambda: (
             get_supabase_client().table(_TABLE).upsert(
-                {"servicio": servicio, "api_key": cifrada, "activo": True},
-                on_conflict="servicio",
+                data, on_conflict="servicio,usuario_id",
             ).execute()
         ))
-        log.info("API key guardada para %s", servicio)
+        log.info("API key guardada para %s (usuario=%s)", servicio, usuario_id)
         return resp.data[0]
     except Exception as exc:
         log.error("Error guardando API key de %s: %s", servicio, exc)
         raise AppError("Error al guardar API key", "DB_INTEGRATIONS_SAVE", 500) from exc
 
 
-async def obtener_api_key(servicio: str) -> Optional[str]:
+async def obtener_api_key(servicio: str, usuario_id: str = None) -> Optional[str]:
     """Obtiene y descifra la API key activa de un servicio."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).select("api_key")
-            .eq("servicio", servicio).eq("activo", True)
-            .limit(1).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("api_key") \
+                .eq("servicio", servicio).eq("activo", True)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.limit(1).execute()
+        resp = await loop.run_in_executor(None, _q)
         if not resp.data:
             return None
         return _descifrar(resp.data[0]["api_key"])
@@ -91,17 +95,20 @@ async def obtener_api_key(servicio: str) -> Optional[str]:
         raise AppError("Error al obtener API key", "DB_INTEGRATIONS_GET", 500) from exc
 
 
-async def eliminar_api_key(servicio: str) -> bool:
+async def eliminar_api_key(servicio: str, usuario_id: str = None) -> bool:
     """Desactiva la API key de un servicio."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).update({"activo": False})
-            .eq("servicio", servicio).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).update({"activo": False}) \
+                .eq("servicio", servicio)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         eliminado = len(resp.data) > 0
         if eliminado:
-            log.info("API key desactivada para %s", servicio)
+            log.info("API key desactivada para %s (usuario=%s)", servicio, usuario_id)
         return eliminado
     except Exception as exc:
         log.error("Error eliminando API key de %s: %s", servicio, exc)

@@ -10,15 +10,39 @@ from config.settings import get_settings
 from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
+from repositories import integrations_repository
 from services import apify_enriquecimiento_service
 
 log = get_logger(__name__)
 settings = get_settings()
 
+_SERVICIO = "apify"
 
-async def status() -> dict:
-    """Verifica si Apify esta configurado."""
-    return {"data": {"configurado": bool(settings.APIFY_API_KEY)}}
+
+async def _obtener_key(usuario_id: str = None) -> str:
+    """Obtiene API key de DB o .env."""
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
+    return key or settings.APIFY_API_KEY
+
+
+async def status(usuario_id: str = None) -> dict:
+    """Verifica si Apify esta configurado en DB para este usuario."""
+    key = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
+    return {"data": {"configurado": bool(key)}}
+
+
+async def guardar_config(api_key: str, usuario_id: str = None) -> dict:
+    """Guarda la API key de Apify en DB."""
+    await integrations_repository.guardar_api_key(_SERVICIO, api_key, usuario_id)
+    return {"data": {"guardado": True}}
+
+
+async def eliminar_config(usuario_id: str = None) -> dict:
+    """Elimina la API key de Apify de DB."""
+    eliminado = await integrations_repository.eliminar_api_key(_SERVICIO, usuario_id)
+    if not eliminado:
+        raise AppError("No hay API key de Apify configurada", "APIFY_NOT_CONFIGURED", 404)
+    return {"deleted": True}
 
 
 async def enriquecer_contacto(contacto_id: str) -> dict:

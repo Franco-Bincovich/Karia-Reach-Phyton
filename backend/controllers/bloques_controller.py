@@ -8,15 +8,15 @@ from __future__ import annotations
 from services import bloques_service
 
 
-async def listar() -> dict:
+async def listar(usuario_id: str = None) -> dict:
     """Devuelve todos los bloques."""
-    bloques = await bloques_service.listar()
+    bloques = await bloques_service.listar(usuario_id)
     return {"data": bloques, "total": len(bloques)}
 
 
-async def crear(nombre: str) -> dict:
+async def crear(nombre: str, usuario_id: str = None) -> dict:
     """Crea un bloque nuevo."""
-    bloque = await bloques_service.crear(nombre)
+    bloque = await bloques_service.crear(nombre, usuario_id)
     return {"data": bloque}
 
 

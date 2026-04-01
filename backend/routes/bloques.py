@@ -14,10 +14,11 @@ Endpoints:
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import bloques_controller
+from middleware.auth import get_usuario_id_from_request
 
 router = APIRouter(prefix="/api/bloques", tags=["bloques"])
 
@@ -37,15 +38,17 @@ class AgregarContactosRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("")
-async def listar() -> dict:
+async def listar(request: Request) -> dict:
     """Lista todos los bloques del usuario."""
-    return await bloques_controller.listar()
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.listar(uid)
 
 
 @router.post("")
-async def crear(body: CrearBloqueRequest) -> dict:
+async def crear(request: Request, body: CrearBloqueRequest) -> dict:
     """Crea un bloque nuevo."""
-    return await bloques_controller.crear(body.nombre)
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.crear(body.nombre, uid)
 
 
 @router.put("/{bloque_id}")

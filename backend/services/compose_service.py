@@ -71,12 +71,12 @@ async def formatear_manual(asunto: str, cuerpo_natural: str) -> dict:
     return resultado
 
 
-async def listar_templates() -> list[dict]:
+async def listar_templates(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los templates guardados."""
-    return await templates_repository.listar()
+    return await templates_repository.listar(usuario_id)
 
 
-async def guardar_template(template: dict) -> dict:
+async def guardar_template(template: dict, usuario_id: str = None) -> dict:
     """
     Guarda un template nuevo.
 
@@ -86,6 +86,8 @@ async def guardar_template(template: dict) -> dict:
     Returns:
         Template creado con id y timestamps.
     """
+    if usuario_id:
+        template["usuario_id"] = usuario_id
     return await templates_repository.crear(template)
 
 

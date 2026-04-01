@@ -12,22 +12,23 @@ from repositories import bloques_repository
 log = get_logger(__name__)
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los bloques con cantidad de contactos."""
-    return await bloques_repository.listar()
+    return await bloques_repository.listar(usuario_id)
 
 
-async def crear(nombre: str) -> dict:
+async def crear(nombre: str, usuario_id: str = None) -> dict:
     """
     Crea un bloque nuevo.
 
     Args:
         nombre: nombre del bloque.
+        usuario_id: ID del usuario propietario.
 
     Returns:
         Dict del bloque creado.
     """
-    return await bloques_repository.crear(nombre)
+    return await bloques_repository.crear(nombre, usuario_id)
 
 
 async def eliminar(bloque_id: str) -> None:

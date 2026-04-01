@@ -17,26 +17,32 @@ log = get_logger(__name__)
 _TABLE = "templates"
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los templates ordenados por fecha de creacion desc."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.data
     except Exception as exc:
         log.error("Error listando templates: %s", exc)
         raise AppError("Error al listar templates", "DB_TEMPLATES_LIST", 500) from exc
 
 
-async def contar() -> int:
+async def contar(usuario_id: str = None) -> int:
     """Devuelve el total de templates."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).select("id", count="exact").execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("id", count="exact")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando templates: %s", exc)

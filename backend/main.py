@@ -21,7 +21,7 @@ from logger import get_logger
 from middleware.auth import AuthMiddleware
 from middleware.error_handler import AppError, app_error_handler, generic_error_handler
 from middleware.rate_limiter import limiter
-from routes import apollo, apify, auth, bloques, compose, contacts, perplexity, replies, send, tracking
+from routes import admin, apollo, apify, auth, bloques, campanas_programadas, compose, contacts, perplexity, replies, send, tracking
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -133,6 +133,8 @@ app.include_router(tracking.router)
 app.include_router(bloques.router)
 app.include_router(perplexity.router)
 app.include_router(apify.router)
+app.include_router(admin.router)
+app.include_router(campanas_programadas.router)
 
 
 @app.get("/health", tags=["health"])

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from controllers import contacts_controller
 from logger import get_logger
+from middleware.auth import get_usuario_id_from_request
 from middleware.rate_limiter import search_limit
 
 log = get_logger(__name__)
@@ -72,33 +73,37 @@ class ManualContactRequest(ContactoBase):
 # --- Endpoints ---
 
 @router.get("")
-async def listar() -> dict:
+async def listar(request: Request) -> dict:
     """Lista todos los contactos."""
-    return await contacts_controller.listar()
+    uid = get_usuario_id_from_request(request)
+    return await contacts_controller.listar(uid)
 
 
 @router.post("/search-ai")
 @search_limit
 async def buscar_con_ia(request: Request, body: SearchAIRequest) -> dict:
     """Busca contactos usando IA con web search."""
-    return await contacts_controller.buscar_con_ia(body.rubro, body.ubicacion, body.cantidad, body.prompt_personalizado)
+    uid = get_usuario_id_from_request(request)
+    return await contacts_controller.buscar_con_ia(body.rubro, body.ubicacion, body.cantidad, body.prompt_personalizado, uid)
 
 
 @router.post("/save-selection")
 async def guardar_seleccion(request: Request) -> dict:
     """Guarda una seleccion de contactos en la base de datos."""
+    uid = get_usuario_id_from_request(request)
     raw = await request.json()
     log.info("Body recibido en save-selection: %s", raw)
     body = SaveSelectionRequest(**raw)
     contactos = [c.model_dump() for c in body.contactos]
     log.info("Primer contacto post-Pydantic: %s", contactos[0] if contactos else "vacío")
-    return await contacts_controller.guardar_seleccion(contactos)
+    return await contacts_controller.guardar_seleccion(contactos, uid)
 
 
 @router.post("/manual")
-async def agregar_manual(body: ManualContactRequest) -> dict:
+async def agregar_manual(request: Request, body: ManualContactRequest) -> dict:
     """Agrega un contacto manualmente."""
-    return await contacts_controller.agregar_manual(body.model_dump())
+    uid = get_usuario_id_from_request(request)
+    return await contacts_controller.agregar_manual(body.model_dump(), uid)
 
 
 @router.delete("/{contact_id}")

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import perplexity_controller
+from middleware.auth import get_usuario_id_from_request
 from middleware.rate_limiter import search_limit
 
 router = APIRouter(prefix="/api/perplexity", tags=["perplexity"])
@@ -37,27 +38,31 @@ class SearchRequest(BaseModel):
 # --- Endpoints ---
 
 @router.get("/status")
-async def status() -> dict:
+async def status(request: Request) -> dict:
     """Verifica si Perplexity esta configurado."""
-    return await perplexity_controller.status()
+    uid = get_usuario_id_from_request(request)
+    return await perplexity_controller.status(uid)
 
 
 @router.post("/config")
-async def guardar_config(body: ConfigRequest) -> dict:
+async def guardar_config(request: Request, body: ConfigRequest) -> dict:
     """Guarda la API key de Perplexity."""
-    return await perplexity_controller.guardar_config(body.api_key)
+    uid = get_usuario_id_from_request(request)
+    return await perplexity_controller.guardar_config(body.api_key, uid)
 
 
 @router.delete("/config")
-async def eliminar_config() -> dict:
+async def eliminar_config(request: Request) -> dict:
     """Elimina la API key de Perplexity."""
-    return await perplexity_controller.eliminar_config()
+    uid = get_usuario_id_from_request(request)
+    return await perplexity_controller.eliminar_config(uid)
 
 
 @router.post("/search")
 @search_limit
 async def buscar(request: Request, body: SearchRequest) -> dict:
     """Busca contactos con Perplexity."""
+    uid = get_usuario_id_from_request(request)
     return await perplexity_controller.buscar(
-        body.rubro, body.ubicacion, body.cantidad, body.prompt_personalizado,
+        body.rubro, body.ubicacion, body.cantidad, body.prompt_personalizado, uid,
     )

@@ -19,14 +19,16 @@ _TABLE = "bloques"
 _TABLE_REL = "bloque_contactos"
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los bloques con cantidad de contactos."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE)
-            .select("*").order("created_at", desc=True).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         bloques = resp.data
         # Contar contactos por bloque
         for bloque in bloques:
@@ -41,13 +43,16 @@ async def listar() -> list[dict]:
         raise AppError("Error al listar bloques", "DB_BLOQUES_LIST", 500) from exc
 
 
-async def crear(nombre: str) -> dict:
+async def crear(nombre: str, usuario_id: str = None) -> dict:
     """Crea un bloque nuevo."""
     try:
         loop = asyncio.get_event_loop()
+        data = {"nombre": nombre}
+        if usuario_id:
+            data["usuario_id"] = usuario_id
         resp = await loop.run_in_executor(None, lambda: (
             get_supabase_client().table(_TABLE)
-            .insert({"nombre": nombre}).execute()
+            .insert(data).execute()
         ))
         log.info("Bloque creado: %s", nombre)
         return resp.data[0]

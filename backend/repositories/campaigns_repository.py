@@ -17,38 +17,46 @@ _CAMPAIGNS = "campaigns"
 _RESULTS = "campaign_results"
 
 
-async def listar() -> list[dict]:
+async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todas las campanas ordenadas por creacion desc."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_CAMPAIGNS).select("*")
-            .order("created_at", desc=True).execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_CAMPAIGNS).select("*").order("created_at", desc=True)
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.data
     except Exception as exc:
         log.error("Error listando campanas: %s", exc)
         raise AppError("Error al listar campanas", "DB_CAMPAIGNS_LIST", 500) from exc
 
-async def contar() -> int:
+async def contar(usuario_id: str = None) -> int:
     """Cuenta total de campanas (query liviana)."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_CAMPAIGNS).select("id", count="exact").execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_CAMPAIGNS).select("id", count="exact")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return resp.count or 0
     except Exception as exc:
         log.error("Error contando campanas: %s", exc)
         raise AppError("Error al contar campanas", "DB_CAMPAIGNS_COUNT", 500) from exc
 
-async def sumar_enviados() -> int:
+async def sumar_enviados(usuario_id: str = None) -> int:
     """Suma sent_count de todas las campanas."""
     try:
         loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_CAMPAIGNS).select("sent_count").execute()
-        ))
+        def _q():
+            q = get_supabase_client().table(_CAMPAIGNS).select("sent_count")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
         return sum(c.get("sent_count", 0) for c in resp.data)
     except Exception as exc:
         log.error("Error sumando enviados: %s", exc)
