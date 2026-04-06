@@ -19,6 +19,7 @@ export default function EnviarCampana() {
   const [loading, setLoading] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [loadingBloque, setLoadingBloque] = useState(false)
   // Scheduling
   const [modoEnvio, setModoEnvio] = useState('ahora')      // 'ahora' | 'programar'
   const [tipoSchedule, setTipoSchedule] = useState('unica') // 'unica' | 'recurrente'
@@ -35,12 +36,14 @@ export default function EnviarCampana() {
   const cargarBloque = async (id) => {
     setBloqueId(id)
     if (!id) { setContactos((prev) => prev.map((c) => ({ ...c, _selected: false }))); return }
+    setLoadingBloque(true)
     try {
       const { data } = await api.get(API_BLOQUE_CONTACTOS(id))
       const bloqueIds = new Set((data.data || []).map((c) => c.id))
       setContactos((prev) => prev.map((c) => ({ ...c, _selected: bloqueIds.has(c.id) })))
       toast.success(`${bloqueIds.size} contactos del bloque cargados`)
     } catch (err) { toast.error(err.message) }
+    finally { setLoadingBloque(false) }
   }
 
   const toggleDia = (i) => setDiasSemana((prev) => prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i])
@@ -99,7 +102,7 @@ export default function EnviarCampana() {
         </div>
         <div className="form-group">
           <label htmlFor="camp-bloque">Usar bloque (opcional)</label>
-          <select id="camp-bloque" value={bloqueId} onChange={(e) => cargarBloque(e.target.value)}>
+          <select id="camp-bloque" value={bloqueId} disabled={loadingBloque} onChange={(e) => cargarBloque(e.target.value)}>
             <option value="">Seleccionar manualmente...</option>
             {bloques.map((b) => <option key={b.id} value={b.id}>{b.nombre} ({b.cantidad_contactos} contactos)</option>)}
           </select>

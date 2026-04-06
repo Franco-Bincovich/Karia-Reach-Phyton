@@ -8,7 +8,8 @@ from __future__ import annotations
 from integrations import perplexity_client
 from logger import get_logger
 from middleware.error_handler import AppError
-from repositories import contacts_repository, integrations_repository
+from repositories import integrations_repository
+from services.contacts_service import filtrar_duplicados
 
 log = get_logger(__name__)
 
@@ -65,21 +66,4 @@ async def buscar_contactos(
     resultados = await perplexity_client.buscar_contactos(
         rubro, ubicacion, cantidad, prompt_personalizado, key,
     )
-    # Filtrar contactos que ya existen por email
-    emails_existentes = await contacts_repository.listar_emails(usuario_id)
-    if emails_existentes:
-        nuevos = []
-        for c in resultados:
-            emp = (c.get("email_empresarial") or "").lower()
-            per = (c.get("email_personal") or "").lower()
-            if not emp and not per:
-                nuevos.append(c)
-                continue
-            if (emp and emp in emails_existentes) or (per and per in emails_existentes):
-                continue
-            nuevos.append(c)
-        filtrados = len(resultados) - len(nuevos)
-        if filtrados:
-            log.info("Perplexity: filtrados %d contactos duplicados de %d", filtrados, len(resultados))
-        resultados = nuevos
-    return resultados
+    return await filtrar_duplicados(resultados, usuario_id)

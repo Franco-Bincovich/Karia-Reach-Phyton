@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import DOMPurify from 'dompurify'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
 import { API_CONTACTS, API_COMPOSE_GENERATE, API_COMPOSE_FROM_CONTACTS, API_COMPOSE_TEMPLATES, API_COMPOSE_FORMAT_MANUAL } from '../constants/api'
@@ -207,12 +208,12 @@ export default function ComponerEmails() {
       {loading && <LoadingSpinner text="Generando con IA..." />}
 
       {results.map((r, i) => (
-        <div key={i} className="card mb-md">
+        <div key={r.asunto ? `${r.asunto}-${i}` : i} className="card mb-md">
           <div className="flex-between mb-md">
             <strong>{r.asunto || r.destinatario}</strong>
             <Button size="sm" variant="ghost" onClick={() => guardarTemplate(r)}>Guardar plantilla</Button>
           </div>
-          <div className="text-sm" dangerouslySetInnerHTML={{ __html: r.cuerpo }} />
+          <div className="text-sm" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(r.cuerpo) }} />
         </div>
       ))}
 

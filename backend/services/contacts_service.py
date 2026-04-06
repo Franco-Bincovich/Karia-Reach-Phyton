@@ -17,8 +17,15 @@ log = get_logger(__name__)
 _MAX_SELECCION = 50
 
 
-async def _filtrar_duplicados(contactos: list[dict], usuario_id: str = None) -> list[dict]:
-    """Filtra contactos cuyos emails ya existen en la base de datos."""
+def _require_uid(usuario_id: str | None) -> str:
+    """Valida que usuario_id esté presente."""
+    if not usuario_id:
+        raise AppError("Token inválido o expirado", "AUTH_REQUIRED", 401)
+    return usuario_id
+
+
+async def filtrar_duplicados(contactos: list[dict], usuario_id: str = None) -> list[dict]:
+    """Filtra contactos cuyos emails ya existen en la base de datos. Reutilizable por otros services."""
     emails_existentes = await contacts_repository.listar_emails(usuario_id)
     if not emails_existentes:
         return contactos
@@ -56,8 +63,9 @@ async def buscar_con_ia(
     Returns:
         Lista de contactos con id temporal ai-{timestamp}-{index}.
     """
+    _require_uid(usuario_id)
     resultados = await claude_client.buscar_contactos(rubro, ubicacion, cantidad, prompt_personalizado)
-    resultados = await _filtrar_duplicados(resultados, usuario_id)
+    resultados = await filtrar_duplicados(resultados, usuario_id)
     # IDs temporales para que el frontend pueda referenciar cada contacto
     # antes de persistirlo. Se limpian en guardar_seleccion() con c.pop("id")
     # cuando el usuario confirma la seleccion y se insertan en DB con UUID real.
@@ -70,18 +78,8 @@ async def buscar_con_ia(
 
 
 async def guardar_seleccion(contactos: list[dict], usuario_id: str = None) -> list[dict]:
-    """
-    Guarda una seleccion de contactos en la base de datos.
-
-    Args:
-        contactos: lista de contactos seleccionados por el usuario.
-
-    Returns:
-        Lista de contactos efectivamente guardados.
-
-    Raises:
-        AppError: si se excede el maximo de 50 contactos.
-    """
+    """Guarda una seleccion de contactos en la base de datos."""
+    _require_uid(usuario_id)
     if len(contactos) > _MAX_SELECCION:
         raise AppError(
             f"Maximo {_MAX_SELECCION} contactos por seleccion",
@@ -106,6 +104,7 @@ async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
     Returns:
         Contacto creado con id y timestamps.
     """
+    _require_uid(usuario_id)
     contacto["confianza"] = 1.0
     contacto["origen"] = "manual"
     if usuario_id:
@@ -115,6 +114,7 @@ async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
 
 async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los contactos."""
+    _require_uid(usuario_id)
     return await contacts_repository.listar(usuario_id)
 
 

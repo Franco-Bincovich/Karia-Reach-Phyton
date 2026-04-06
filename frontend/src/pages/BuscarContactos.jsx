@@ -24,15 +24,18 @@ export default function BuscarContactos() {
   const [nombreBloque, setNombreBloque] = useState('')
 
   useEffect(() => {
-    api.get(API_APOLLO_STATUS)
+    const ctrl = new AbortController()
+    const s = ctrl.signal
+    api.get(API_APOLLO_STATUS, { signal: s })
       .then(({ data }) => setApolloOk(!!data?.data?.configurado))
-      .catch(() => setApolloOk(false))
-    api.get(API_PERPLEXITY_STATUS)
+      .catch(() => { if (!s.aborted) setApolloOk(false) })
+    api.get(API_PERPLEXITY_STATUS, { signal: s })
       .then(({ data }) => setPerplexityOk(!!data?.data?.configurado))
-      .catch(() => setPerplexityOk(false))
-    api.get(API_APIFY_STATUS)
+      .catch(() => { if (!s.aborted) setPerplexityOk(false) })
+    api.get(API_APIFY_STATUS, { signal: s })
       .then(({ data }) => setApifyOk(!!data?.data?.configurado))
-      .catch(() => setApifyOk(false))
+      .catch(() => { if (!s.aborted) setApifyOk(false) })
+    return () => ctrl.abort()
   }, [])
 
   const allSelected = results.length > 0 && results.every((c) => c._selected)
@@ -58,7 +61,6 @@ export default function BuscarContactos() {
   const buscar = async () => {
     if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
     if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa una ubicacion')
-    console.log("Método seleccionado:", metodo, "perplexityOk:", perplexityOk, "apolloOk:", apolloOk)
     if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
     if (metodo === 'perplexity' && !perplexityOk) return toast.error('Configurá tu API key de Perplexity en Configuración')
     if (metodo === 'apify' && !apifyOk) return toast.error('Configurá tu API key de Apify en Configuración')
@@ -134,7 +136,7 @@ export default function BuscarContactos() {
           </div>
           <div className="form-group">
             <label htmlFor="buscar-cantidad">Cantidad</label>
-            <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: +e.target.value })} />
+            <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => { const v = Math.min(50, Math.max(5, +e.target.value || 5)); setForm({ ...form, cantidad: v }) }} />
           </div>
         </div>
         {metodo === 'apify' && (
@@ -157,7 +159,7 @@ export default function BuscarContactos() {
           <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>
           <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>
           <div style={{ flex: 1 }} />
-          <Button onClick={() => { console.log("CLICK BUSCAR - metodo:", metodo); buscar(); }}>Buscar</Button>
+          <Button onClick={buscar}>Buscar</Button>
           <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>
         </div>
         {metodo === 'apollo' && apolloOk === false && (

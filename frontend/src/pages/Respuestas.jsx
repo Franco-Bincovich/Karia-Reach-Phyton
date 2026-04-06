@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
 import { API_SEND_CAMPAIGNS, API_REPLIES, API_REPLIES_SYNC, API_REPLIES_RESPOND, API_REPLIES_READ } from '../constants/api'
@@ -9,6 +9,8 @@ import './Respuestas.css'
 
 export default function Respuestas() {
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [campanas, setCampanas] = useState([])
   const [campanaId, setCampanaId] = useState('')
   const [respuestas, setRespuestas] = useState([])
@@ -20,7 +22,7 @@ export default function Respuestas() {
   useEffect(() => {
     api.get(API_SEND_CAMPAIGNS)
       .then(({ data }) => setCampanas(data.data || []))
-      .catch((err) => toast.error(err.message))
+      .catch((err) => toastRef.current.error(err.message))
   }, [])
 
   const cargar = async (id) => {

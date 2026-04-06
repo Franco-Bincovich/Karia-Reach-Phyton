@@ -86,17 +86,24 @@ def _enviar_sync(destinatario: str, asunto: str, cuerpo: str, tracking_url: Opti
     rfc822_id = hdrs.get("message-id", gmail_id)
     return {"message_id": rfc822_id, "destinatario": destinatario}
 
+_SEND_TIMEOUT = 30  # segundos
+
+
 async def enviar_email(
     destinatario: str, asunto: str, cuerpo: str, tracking_url: Optional[str] = None
 ) -> dict:
-    """Envia un email individual sin bloquear el event loop."""
+    """Envia un email individual sin bloquear el event loop (timeout 30s)."""
     try:
         loop = asyncio.get_event_loop()
-        resultado = await loop.run_in_executor(
-            None, _enviar_sync, destinatario, asunto, cuerpo, tracking_url
+        resultado = await asyncio.wait_for(
+            loop.run_in_executor(None, _enviar_sync, destinatario, asunto, cuerpo, tracking_url),
+            timeout=_SEND_TIMEOUT,
         )
         log.info("Email enviado a %s — id: %s", destinatario, resultado["message_id"])
         return resultado
+    except asyncio.TimeoutError:
+        log.error("Timeout enviando email a %s (%ds)", destinatario, _SEND_TIMEOUT)
+        raise AppError(f"Timeout al enviar email a {destinatario}", "GMAIL_TIMEOUT", 504)
     except AppError:
         raise
     except Exception as exc:

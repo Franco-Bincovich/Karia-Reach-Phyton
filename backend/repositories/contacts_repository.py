@@ -24,13 +24,16 @@ _CAMPOS_STR_NO_NULL = ("email_empresarial", "email_personal", "telefono_empresa"
 
 
 def _normalizar_contacto(contacto: dict) -> dict:
-    """Prepara un contacto antes de insertar en DB: vacios a None, confianza a int, campos extra fuera."""
+    """Prepara un contacto antes de insertar en DB: vacios a None, confianza normalizada, campos extra fuera."""
     for campo in _CAMPOS_STR_NO_NULL:
         contacto[campo] = contacto.get(campo) or None
     val = contacto.get("confianza")
-    if isinstance(val, float) and val <= 1.0:
-        contacto["confianza"] = int(round(val * 100))
-    # Eliminar campos internos que no existen como columna en Supabase
+    if val is not None:
+        val = float(val)
+        # Si viene como int 0-100 (legacy), convertir a float 0-1
+        if val > 1.0:
+            val = val / 100.0
+        contacto["confianza"] = max(0.0, min(1.0, val))
     contacto.pop("apollo_id", None)
     return contacto
 
@@ -87,6 +90,22 @@ async def contar(usuario_id: str = None) -> int:
     except Exception as exc:
         log.error("Error contando contactos: %s", exc)
         raise AppError("Error al contar contactos", "DB_CONTACTS_COUNT", 500) from exc
+
+
+async def listar_por_ids(ids: list[str], usuario_id: str) -> list[dict]:
+    """Devuelve contactos por lista de IDs, filtrados por usuario_id."""
+    if not ids:
+        return []
+    try:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
+            .in_("id", ids).eq("usuario_id", usuario_id).execute()
+        ))
+        return resp.data
+    except Exception as exc:
+        log.error("Error listando contactos por IDs: %s", exc)
+        raise AppError("Error al listar contactos", "DB_CONTACTS_BY_IDS", 500) from exc
 
 
 async def buscar_por_email(email: str) -> Optional[dict]:
@@ -168,9 +187,8 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
 
     for c in nuevos:
         _normalizar_contacto(c)
-    log.info("Emails existentes en DB: %s", list(existentes)[:10])
-    log.info("Emails a insertar: %s", [c.get("email_empresarial") for c in nuevos])
-    log.info("Primer contacto antes del insert: linkedin=%s", nuevos[0].get("linkedin_url") if nuevos else "vacío")
+    log.info("Emails existentes en DB: %d encontrados", len(existentes))
+    log.info("Contactos a insertar: %d", len(nuevos))
     try:
         loop = asyncio.get_event_loop()
         resp = await loop.run_in_executor(None, lambda: (

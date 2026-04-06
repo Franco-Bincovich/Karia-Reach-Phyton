@@ -20,8 +20,18 @@ settings = get_settings()
 log = get_logger(__name__)
 
 
+def _require_uid(usuario_id: str | None) -> str:
+    """Valida que usuario_id esté presente."""
+    if not usuario_id:
+        raise AppError("Token inválido o expirado", "AUTH_REQUIRED", 401)
+    return usuario_id
+
+
+def _validar_asunto(asunto: str) -> None:
+    if "\n" in asunto or "\r" in asunto:
+        raise AppError("El asunto contiene caracteres no permitidos", "EMAIL_HEADER_INJECTION", 400)
+
 def _personalizar(texto: str, contacto: dict) -> str:
-    """Reemplaza variables {{nombre}}, {{empresa}}, {{cargo}} con valores escapados."""
     return (
         texto.replace("{{nombre}}", escape(contacto.get("nombre", "")))
         .replace("{{empresa}}", escape(contacto.get("empresa", "")))
@@ -32,12 +42,7 @@ def _personalizar(texto: str, contacto: dict) -> str:
 def _preparar_emails(
     contactos: list[dict], template: dict, campaign_id: str
 ) -> tuple[list[dict], dict]:
-    """
-    Arma la lista de emails personalizados con pixel de tracking HMAC.
-
-    Returns:
-        Tupla (emails, contacto_por_email) para envio y registro posterior.
-    """
+    """Arma emails personalizados con pixel de tracking HMAC."""
     base = settings.BASE_URL.rstrip("/")
     emails = []
     contacto_por_email = {}
@@ -46,9 +51,11 @@ def _preparar_emails(
         if not dest:
             continue
         token = generar_token_tracking(campaign_id, contacto["id"])
+        asunto = _personalizar(template["asunto"], contacto)
+        _validar_asunto(asunto)
         emails.append({
             "destinatario": dest,
-            "asunto": _personalizar(template["asunto"], contacto),
+            "asunto": asunto,
             "cuerpo": _personalizar(template["cuerpo"], contacto),
             "tracking_url": f"{base}/track/open/{campaign_id}/{contacto['id']}?token={token}",
         })
@@ -60,12 +67,7 @@ async def _registrar_resultados(
     campaign_id: str, emails: list[dict], contacto_por_email: dict,
     resultados_gmail: list[dict],
 ) -> dict:
-    """
-    Registra cada resultado de envio en campaign_results y devuelve contadores.
-
-    Returns:
-        Dict con sent_count y failed_count.
-    """
+    """Registra resultados de envio y devuelve contadores."""
     ahora = datetime.now(timezone.utc).isoformat()
     sent, failed = 0, 0
     for resultado in resultados_gmail:
@@ -91,22 +93,19 @@ async def enviar_campana(
     nombre: str, template_id: str, contact_ids: list[str],
     scheduled_at: Optional[str] = None, usuario_id: str = None,
 ) -> dict:
-    """
-    Crea y ejecuta una campana de email (orquestador).
-
-    Flujo: valida template/contactos → crea campana → _preparar_emails
-    → gmail bulk → _registrar_resultados → actualiza metricas.
-    Sin rollback: si falla a mitad, status queda "sending".
-    """
+    """Crea y ejecuta una campana de email."""
+    _require_uid(usuario_id)
     templates = await templates_repository.listar(usuario_id)
     template = next((t for t in templates if t["id"] == template_id), None)
     if not template:
         raise AppError("Template no encontrado", "TEMPLATE_NOT_FOUND", 404)
 
-    todos = await contacts_repository.listar(usuario_id)
-    contactos = [c for c in todos if c["id"] in contact_ids]
+    contactos = await contacts_repository.listar_por_ids(contact_ids, usuario_id)
     if not contactos:
         raise AppError("No se encontraron contactos validos", "CONTACTS_NOT_FOUND", 404)
+    # BUG-004: verificar que todos los contact_ids solicitados pertenecen al usuario
+    if len(contactos) != len(contact_ids):
+        raise AppError("No tenés acceso a algunos contactos seleccionados", "CONTACTS_FORBIDDEN", 403)
 
     camp_data = {
         "nombre": nombre, "template_id": template_id, "contacts_count": len(contactos),
@@ -127,24 +126,22 @@ async def enviar_campana(
 
 async def listar_campanas(usuario_id: str = None) -> list[dict]:
     """Devuelve todas las campanas."""
+    _require_uid(usuario_id)
     return await campaigns_repository.listar(usuario_id)
 
 
 async def obtener_dashboard(usuario_id: str = None) -> dict:
-    """Genera un resumen general con queries COUNT (no trae todos los registros)."""
-    return {
-        "contactos": await contacts_repository.contar(usuario_id),
-        "templates": await templates_repository.contar(usuario_id),
-        "campanas": await campaigns_repository.contar(usuario_id),
-        "emails_enviados": await campaigns_repository.sumar_enviados(usuario_id),
-    }
+    """Resumen general con queries COUNT."""
+    _require_uid(usuario_id)
+    return {"contactos": await contacts_repository.contar(usuario_id),
+            "templates": await templates_repository.contar(usuario_id),
+            "campanas": await campaigns_repository.contar(usuario_id),
+            "emails_enviados": await campaigns_repository.sumar_enviados(usuario_id)}
 
-
-async def obtener_estadisticas_campana(campaign_id: str) -> dict:
-    """Estadisticas detalladas de una campana individual."""
+async def obtener_estadisticas_campana(campaign_id: str, usuario_id: str = None) -> dict:
+    _require_uid(usuario_id)
     return await campaigns_repository.obtener_estadisticas_campana(campaign_id)
 
-
-async def obtener_estadisticas_globales() -> dict:
-    """Estadisticas agregadas de todas las campanas."""
+async def obtener_estadisticas_globales(usuario_id: str = None) -> dict:
+    _require_uid(usuario_id)
     return await campaigns_repository.obtener_estadisticas_globales()

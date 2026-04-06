@@ -56,15 +56,17 @@ async def listar_campanas(request: Request) -> dict:
 
 
 @router.get("/campaigns/{campaign_id}/stats")
-async def estadisticas_campana(campaign_id: UUID) -> dict:
+async def estadisticas_campana(request: Request, campaign_id: UUID) -> dict:
     """Estadisticas detalladas de una campana individual."""
-    return await send_controller.estadisticas_campana(str(campaign_id))
+    uid = get_usuario_id_from_request(request)
+    return await send_controller.estadisticas_campana(str(campaign_id), uid)
 
 
 @router.get("/stats")
-async def estadisticas_globales() -> dict:
+async def estadisticas_globales(request: Request) -> dict:
     """Estadisticas agregadas de todas las campanas."""
-    return await send_controller.estadisticas_globales()
+    uid = get_usuario_id_from_request(request)
+    return await send_controller.estadisticas_globales(uid)
 
 
 @router.get("/dashboard")

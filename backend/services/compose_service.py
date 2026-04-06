@@ -7,9 +7,17 @@ from __future__ import annotations
 
 from integrations import claude_client
 from logger import get_logger
+from middleware.error_handler import AppError
 from repositories import templates_repository
 
 log = get_logger(__name__)
+
+
+def _require_uid(usuario_id: str | None) -> str:
+    """Valida que usuario_id esté presente."""
+    if not usuario_id:
+        raise AppError("Token inválido o expirado", "AUTH_REQUIRED", 401)
+    return usuario_id
 
 
 async def generar_variantes(
@@ -73,6 +81,7 @@ async def formatear_manual(asunto: str, cuerpo_natural: str) -> dict:
 
 async def listar_templates(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los templates guardados."""
+    _require_uid(usuario_id)
     return await templates_repository.listar(usuario_id)
 
 
@@ -86,8 +95,8 @@ async def guardar_template(template: dict, usuario_id: str = None) -> dict:
     Returns:
         Template creado con id y timestamps.
     """
-    if usuario_id:
-        template["usuario_id"] = usuario_id
+    _require_uid(usuario_id)
+    template["usuario_id"] = usuario_id
     return await templates_repository.crear(template)
 
 

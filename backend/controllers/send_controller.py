@@ -31,13 +31,13 @@ async def obtener_dashboard(usuario_id: str = None) -> dict:
     return {"data": dashboard}
 
 
-async def estadisticas_campana(campaign_id: str) -> dict:
+async def estadisticas_campana(campaign_id: str, usuario_id: str = None) -> dict:
     """Estadisticas detalladas de una campana."""
-    stats = await send_service.obtener_estadisticas_campana(campaign_id)
+    stats = await send_service.obtener_estadisticas_campana(campaign_id, usuario_id)
     return {"data": stats}
 
 
-async def estadisticas_globales() -> dict:
+async def estadisticas_globales(usuario_id: str = None) -> dict:
     """Estadisticas agregadas de todas las campanas."""
-    stats = await send_service.obtener_estadisticas_globales()
+    stats = await send_service.obtener_estadisticas_globales(usuario_id)
     return {"data": stats}

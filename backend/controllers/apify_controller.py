@@ -85,23 +85,26 @@ async def enriquecer_contacto(contacto_id: str) -> dict:
             if not contacto.get(k):
                 update_data[k] = v
 
-    # Normalizar confianza de float a int para DB
+    # Normalizar confianza a float 0-1 (repo se encarga del formato final)
     if "confianza" in update_data:
-        val = update_data["confianza"]
-        if isinstance(val, float) and val <= 1.0:
-            update_data["confianza"] = int(round(val * 100))
+        val = float(update_data["confianza"])
+        update_data["confianza"] = max(0.0, min(1.0, val if val <= 1.0 else val / 100.0))
 
     # Remover emails que ya existen en otro contacto para evitar duplicados
     for email_field in ("email_empresarial", "email_personal"):
         email_val = update_data.get(email_field)
         if email_val:
-            existing = await loop.run_in_executor(None, lambda ev=email_val, ef=email_field: (
-                get_supabase_client().table("contacts")
-                .select("id").eq(ef, ev).neq("id", contacto_id).limit(1).execute()
-            ))
-            if existing.data:
-                del update_data[email_field]
-                log.warning("Email %s ya existe en otro contacto, no se actualiza", email_val)
+            try:
+                existing = await loop.run_in_executor(None, lambda ev=email_val, ef=email_field: (
+                    get_supabase_client().table("contacts")
+                    .select("id").eq(ef, ev).neq("id", contacto_id).limit(1).execute()
+                ))
+                if existing.data:
+                    del update_data[email_field]
+                    log.warning("Email %s ya existe en otro contacto, no se actualiza", email_val)
+            except Exception as exc:
+                log.error("Error verificando email duplicado %s: %s", email_field, exc)
+                continue
 
     if update_data:
         update_data["origen"] = "apify"

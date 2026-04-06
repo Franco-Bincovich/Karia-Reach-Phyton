@@ -15,48 +15,26 @@ export default function Configuracion() {
   const [apifyStatus, setApifyStatus] = useState(false)
   const [apifyKey, setApifyKey] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState(true)
   const [showConfirm, setShowConfirm] = useState(null)
 
   useEffect(() => { checkStatus() }, [])
 
   const checkStatus = async () => {
-    api.get(API_APOLLO_STATUS)
-      .then(({ data }) => setApolloStatus(!!data.data?.configurado))
-      .catch(() => setApolloStatus(false))
-    api.get(API_PERPLEXITY_STATUS)
-      .then(({ data }) => setPerplexityStatus(!!data.data?.configurado))
-      .catch(() => setPerplexityStatus(false))
-    api.get(API_APIFY_STATUS)
-      .then(({ data }) => setApifyStatus(!!data.data?.configurado))
-      .catch(() => setApifyStatus(false))
+    setLoadingStatus(true)
+    Promise.all([
+      api.get(API_APOLLO_STATUS).then(({ data }) => setApolloStatus(!!data.data?.configurado)).catch(() => setApolloStatus(false)),
+      api.get(API_PERPLEXITY_STATUS).then(({ data }) => setPerplexityStatus(!!data.data?.configurado)).catch(() => setPerplexityStatus(false)),
+      api.get(API_APIFY_STATUS).then(({ data }) => setApifyStatus(!!data.data?.configurado)).catch(() => setApifyStatus(false)),
+    ]).finally(() => setLoadingStatus(false))
   }
 
-  const guardarApollo = async () => {
-    if (apolloKey.length < 10) return toast.error('API key debe tener al menos 10 caracteres')
+  const guardarIntegracion = async (servicio, endpoint, apiKey, clearKey) => {
+    if (apiKey.length < 10) return toast.error('API key debe tener al menos 10 caracteres')
     setLoading(true)
     try {
-      await api.post(API_APOLLO_CONFIG, { api_key: apolloKey })
-      toast.success('API key de Apollo guardada'); setApolloKey(''); checkStatus()
-    } catch (err) { toast.error(err.message) }
-    finally { setLoading(false) }
-  }
-
-  const guardarPerplexity = async () => {
-    if (perplexityKey.length < 10) return toast.error('API key debe tener al menos 10 caracteres')
-    setLoading(true)
-    try {
-      await api.post(API_PERPLEXITY_CONFIG, { api_key: perplexityKey })
-      toast.success('API key de Perplexity guardada'); setPerplexityKey(''); checkStatus()
-    } catch (err) { toast.error(err.message) }
-    finally { setLoading(false) }
-  }
-
-  const guardarApify = async () => {
-    if (apifyKey.length < 10) return toast.error('API key debe tener al menos 10 caracteres')
-    setLoading(true)
-    try {
-      await api.post(API_APIFY_CONFIG, { api_key: apifyKey })
-      toast.success('API key de Apify guardada'); setApifyKey(''); checkStatus()
+      await api.post(endpoint, { api_key: apiKey })
+      toast.success(`API key de ${servicio} guardada`); clearKey(''); checkStatus()
     } catch (err) { toast.error(err.message) }
     finally { setLoading(false) }
   }
@@ -76,8 +54,8 @@ export default function Configuracion() {
       <div className="card mb-md" style={{ maxWidth: 600 }}>
         <div className="flex-between mb-md">
           <h3>Apollo.io</h3>
-          <Badge variant={apolloStatus ? 'success' : 'error'}>
-            {apolloStatus ? 'Configurado' : 'No configurado'}
+          <Badge variant={loadingStatus ? 'info' : apolloStatus ? 'success' : 'error'}>
+            {loadingStatus ? '...' : apolloStatus ? 'Configurado' : 'No configurado'}
           </Badge>
         </div>
         <p className="text-sm text-secondary mb-md">
@@ -89,7 +67,7 @@ export default function Configuracion() {
           <input id="apollo-key" type="password" value={apolloKey} onChange={(e) => setApolloKey(e.target.value)} placeholder="Pega tu API key de Apollo.io" />
         </div>
         <div className="flex gap-sm">
-          <Button loading={loading} onClick={guardarApollo}>Guardar</Button>
+          <Button loading={loading} onClick={() => guardarIntegracion('Apollo', API_APOLLO_CONFIG, apolloKey, setApolloKey)}>Guardar</Button>
           {apolloStatus && <Button variant="danger" onClick={() => setShowConfirm('apollo')}>Eliminar</Button>}
         </div>
       </div>
@@ -97,8 +75,8 @@ export default function Configuracion() {
       <div className="card mb-md" style={{ maxWidth: 600 }}>
         <div className="flex-between mb-md">
           <h3>Perplexity</h3>
-          <Badge variant={perplexityStatus ? 'success' : 'error'}>
-            {perplexityStatus ? 'Configurado' : 'No configurado'}
+          <Badge variant={loadingStatus ? 'info' : perplexityStatus ? 'success' : 'error'}>
+            {loadingStatus ? '...' : perplexityStatus ? 'Configurado' : 'No configurado'}
           </Badge>
         </div>
         <p className="text-sm text-secondary mb-md">
@@ -110,7 +88,7 @@ export default function Configuracion() {
           <input id="perplexity-key" type="password" value={perplexityKey} onChange={(e) => setPerplexityKey(e.target.value)} placeholder="Pega tu API key de Perplexity" />
         </div>
         <div className="flex gap-sm">
-          <Button loading={loading} onClick={guardarPerplexity}>Guardar</Button>
+          <Button loading={loading} onClick={() => guardarIntegracion('Perplexity', API_PERPLEXITY_CONFIG, perplexityKey, setPerplexityKey)}>Guardar</Button>
           {perplexityStatus && <Button variant="danger" onClick={() => setShowConfirm('perplexity')}>Eliminar</Button>}
         </div>
       </div>
@@ -118,8 +96,8 @@ export default function Configuracion() {
       <div className="card mb-md" style={{ maxWidth: 600 }}>
         <div className="flex-between mb-md">
           <h3>Apify</h3>
-          <Badge variant={apifyStatus ? 'success' : 'error'}>
-            {apifyStatus ? 'Configurado' : 'No configurado'}
+          <Badge variant={loadingStatus ? 'info' : apifyStatus ? 'success' : 'error'}>
+            {loadingStatus ? '...' : apifyStatus ? 'Configurado' : 'No configurado'}
           </Badge>
         </div>
         <p className="text-sm text-secondary mb-md">
@@ -131,7 +109,7 @@ export default function Configuracion() {
           <input id="apify-key" type="password" value={apifyKey} onChange={(e) => setApifyKey(e.target.value)} placeholder="Pegá tu API key de Apify" />
         </div>
         <div className="flex gap-sm">
-          <Button loading={loading} onClick={guardarApify}>Guardar</Button>
+          <Button loading={loading} onClick={() => guardarIntegracion('Apify', API_APIFY_CONFIG, apifyKey, setApifyKey)}>Guardar</Button>
           {apifyStatus && <Button variant="danger" onClick={() => setShowConfirm('apify')}>Eliminar</Button>}
         </div>
       </div>

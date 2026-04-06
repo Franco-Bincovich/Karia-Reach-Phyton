@@ -12,36 +12,22 @@ from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 
-import jwt
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
-from config.settings import get_settings
 from controllers import campanas_programadas_controller
-from middleware.error_handler import AppError
+from middleware.auth import get_usuario_id_from_request
 
 router = APIRouter(prefix="/api/campanas-programadas", tags=["campanas-programadas"])
 
 
-# --- Dependencia JWT ---
-
 def get_usuario_id(request: Request) -> str:
-    """Extrae usuario_id del JWT (ya validado por AuthMiddleware)."""
-    settings = get_settings()
-    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-    try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET, algorithms=["HS256"],
-            audience="karia-reach", issuer="karia-reach-backend",
-        )
-        uid = payload.get("usuario_id")
-        if not uid:
-            raise AppError("Token sin usuario_id", "UNAUTHORIZED", 401)
-        return uid
-    except AppError:
-        raise
-    except Exception as exc:
-        raise AppError("Se requiere autenticacion JWT", "JWT_REQUIRED", 401) from exc
+    """Extrae usuario_id del JWT usando la función centralizada."""
+    uid = get_usuario_id_from_request(request)
+    if not uid:
+        from middleware.error_handler import AppError
+        raise AppError("Se requiere autenticacion JWT", "JWT_REQUIRED", 401)
+    return uid
 
 
 # --- Modelos de validacion ---

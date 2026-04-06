@@ -29,14 +29,16 @@ async def listar_usuarios() -> list[dict]:
     usuarios = resp.data or []
     for u in usuarios:
         uid = u["id"]
-        c_resp = await _run(lambda uid=uid: _db().table("contacts")
-            .select("id", count="exact").eq("usuario_id", uid).execute())
+        c_resp, camp_resp, emails_resp = await asyncio.gather(
+            _run(lambda uid=uid: _db().table("contacts")
+                .select("id", count="exact").eq("usuario_id", uid).execute()),
+            _run(lambda uid=uid: _db().table("campaigns")
+                .select("id", count="exact").eq("usuario_id", uid).execute()),
+            _run(lambda uid=uid: _db().table("campaigns")
+                .select("sent_count").eq("usuario_id", uid).execute()),
+        )
         u["total_contactos"] = c_resp.count or 0
-        camp_resp = await _run(lambda uid=uid: _db().table("campaigns")
-            .select("id", count="exact").eq("usuario_id", uid).execute())
         u["total_campanas"] = camp_resp.count or 0
-        emails_resp = await _run(lambda uid=uid: _db().table("campaigns")
-            .select("sent_count").eq("usuario_id", uid).execute())
         u["total_emails_enviados"] = sum(r.get("sent_count", 0) for r in (emails_resp.data or []))
     log.info("Admin: listados %d usuarios", len(usuarios))
     return usuarios

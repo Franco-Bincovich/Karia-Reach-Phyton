@@ -32,7 +32,7 @@ class CrearBloqueRequest(BaseModel):
 
 class AgregarContactosRequest(BaseModel):
     """IDs de contactos a agregar al bloque."""
-    contacto_ids: List[str] = Field(..., min_length=1)
+    contacto_ids: List[str] = Field(..., min_length=1, max_length=500)
 
 
 # --- Endpoints ---

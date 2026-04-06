@@ -90,8 +90,9 @@ def _log_startup_status() -> None:
     if len(settings.JWT_SECRET) < 16:
         log.error("  JWT_SECRET: FALTA o muy corta (min 16 chars) — ABORTANDO")
         sys.exit(1)
-    if not settings.ENCRYPTION_KEY:
-        log.warning("  ENCRYPTION_KEY: FALTA — API keys de terceros se guardaran SIN cifrar")
+    if not settings.ENCRYPTION_KEY or len(settings.ENCRYPTION_KEY) < 16:
+        log.error("  ENCRYPTION_KEY: FALTA o muy corta — requerida para encriptar API keys. Genera con: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+        sys.exit(1)
 
 
 # --- App ---

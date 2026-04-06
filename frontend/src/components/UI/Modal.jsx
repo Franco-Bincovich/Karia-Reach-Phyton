@@ -3,18 +3,18 @@ import './Modal.css'
 
 export default function Modal({ title, onClose, children }) {
   const contentRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
-    // Cerrar con Escape
-    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+    const handleKey = (e) => { if (e.key === 'Escape') onCloseRef.current() }
     document.addEventListener('keydown', handleKey)
 
-    // Focus trap: mover foco al primer elemento focusable del modal
     const focusable = contentRef.current?.querySelector('input, button, textarea, select')
     focusable?.focus()
 
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [])
 
   return (
     <div className="modal-overlay" onClick={onClose}>

@@ -1,6 +1,24 @@
-import { useState } from 'react'
+import { Component, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+
+class ErrorBoundary extends Component {
+  state = { hasError: false, error: null }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('ErrorBoundary:', error, info.componentStack) }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '3rem', textAlign: 'center' }}>
+          <h2>Algo salio mal</h2>
+          <p style={{ color: '#666', margin: '1rem 0' }}>{this.state.error?.message || 'Error inesperado'}</p>
+          <button onClick={() => window.location.reload()} style={{ padding: '0.5rem 1.5rem', cursor: 'pointer' }}>Recargar</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 import Sidebar from './components/Layout/Sidebar'
 import Header from './components/Layout/Header'
 import Login from './pages/Login'
@@ -43,10 +61,12 @@ export default function App() {
       <div className="app-content">
         <Header routes={ROUTES} />
         <main className="page">
-          <Routes>
-            {ROUTES.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
-            <Route path="*" element={<Navigate to="/buscar" replace />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              {ROUTES.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
+              <Route path="*" element={<Navigate to="/buscar" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

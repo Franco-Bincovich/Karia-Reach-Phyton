@@ -133,7 +133,7 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
-        total = len(resultados) or 1
+        total = len(resultados)
         replies = await loop.run_in_executor(None, lambda: (
             get_supabase_client().table("email_replies").select("id")
             .eq("campaign_id", campaign_id).execute()
@@ -147,8 +147,8 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
             "total_abiertos": abiertos,
             "total_sin_abrir": enviados - abiertos,
             "total_respondidos": respondidos,
-            "tasa_apertura": round(abiertos / total * 100, 2),
-            "tasa_fallo": round(fallidos / total * 100, 2),
+            "tasa_apertura": round(abiertos / total * 100, 1) if total > 0 else None,
+            "tasa_fallo": round(fallidos / total * 100, 1) if total > 0 else None,
             "resultados": [
                 {k: r.get(k) for k in
                  ("email_destinatario", "asunto", "exitoso", "enviado_at", "opened_at", "error")}
@@ -174,7 +174,7 @@ async def obtener_estadisticas_globales() -> dict:
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
-        base = enviados or 1
+        base = enviados
         all_replies = await loop.run_in_executor(None, lambda: (
             get_supabase_client().table("email_replies").select("id").execute()
         ))
@@ -186,7 +186,7 @@ async def obtener_estadisticas_globales() -> dict:
             "total_emails_fallidos": fallidos,
             "total_aperturas": abiertos,
             "total_respondidos": respondidos,
-            "tasa_apertura_global": round(abiertos / base * 100, 2),
+            "tasa_apertura_global": round(abiertos / base * 100, 1) if base > 0 else None,
         }
     except Exception as exc:
         log.error("Error obteniendo estadisticas globales: %s", exc)

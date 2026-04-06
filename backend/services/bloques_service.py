@@ -12,8 +12,16 @@ from repositories import bloques_repository
 log = get_logger(__name__)
 
 
+def _require_uid(usuario_id: str | None) -> str:
+    """Valida que usuario_id esté presente."""
+    if not usuario_id:
+        raise AppError("Token inválido o expirado", "AUTH_REQUIRED", 401)
+    return usuario_id
+
+
 async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los bloques con cantidad de contactos."""
+    _require_uid(usuario_id)
     return await bloques_repository.listar(usuario_id)
 
 
@@ -28,6 +36,7 @@ async def crear(nombre: str, usuario_id: str = None) -> dict:
     Returns:
         Dict del bloque creado.
     """
+    _require_uid(usuario_id)
     return await bloques_repository.crear(nombre, usuario_id)
 
 
