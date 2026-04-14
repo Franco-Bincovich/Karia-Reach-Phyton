@@ -26,9 +26,15 @@ async def eliminar_config(usuario_id: str = None) -> dict:
     return {"deleted": True}
 
 
-async def buscar(rubro: str, ubicacion: str, cantidad: int, usuario_id: str = None) -> dict:
+async def buscar(
+    rubro: str, ubicacion: str, cantidad: int, usuario_id: str = None,
+    cargo: str | None = None, tamano_empresa: str | None = None,
+    solo_email_verificado: bool = False,
+) -> dict:
     """Busca contactos via Apollo."""
-    contactos = await apollo_service.buscar_contactos(rubro, ubicacion, cantidad, usuario_id)
+    contactos = await apollo_service.buscar_contactos(
+        rubro, ubicacion, cantidad, usuario_id, cargo, tamano_empresa, solo_email_verificado,
+    )
     return {"data": contactos, "total": len(contactos)}
 
 

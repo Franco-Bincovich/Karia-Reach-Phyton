@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACT_DELETE, API_BLOQUES, API_BLOQUE_CONTACTOS, API_APIFY_ENRICH } from '../constants/api'
+import { API_CONTACTS, API_CONTACT_DELETE, API_BLOQUES, API_BLOQUE_CONTACTOS, API_CONTACT_ENRICH } from '../constants/api'
 import Button from '../components/UI/Button'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
@@ -12,12 +12,29 @@ import './Historial.css'
 
 const PAGE_SIZE = 20
 
+const ORIGEN_LABEL = { ai: 'IA', apollo: 'Apollo', apify: 'Apify', perplexity: 'Perplexity', claude: 'Claude', manual: 'Manual' }
+const ORIGEN_COLOR = { ai: 'var(--primary)', apollo: 'var(--primary)', claude: 'var(--primary)' }
+
 const OrigenBadge = ({ value }) => {
-  const isAI = value === 'ai' || value === 'apollo'
+  const isAI = value === 'ai' || value === 'apollo' || value === 'claude'
   const bg = isAI ? 'var(--row-selected)' : '#F3F4F6'
-  const color = isAI ? 'var(--primary)' : 'var(--text-secondary)'
-  const label = value === 'ai' ? 'IA' : value === 'apollo' ? 'Apollo' : value === 'apify' ? 'Apify' : value === 'perplexity' ? 'Perplexity' : 'Manual'
+  const color = ORIGEN_COLOR[value] || 'var(--text-secondary)'
+  const label = ORIGEN_LABEL[value] || value || 'Manual'
   return <span className="origen-badge" style={{ background: bg, color }}>{label}</span>
+}
+
+const EnrichmentSourcesBadges = ({ sources }) => {
+  if (!sources || !sources.length) return null
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+      {sources.map((s) => (
+        <span key={s} style={{
+          fontSize: '0.65rem', fontWeight: 600, padding: '1px 5px',
+          borderRadius: 8, background: '#EDE9FE', color: '#5B21B6',
+        }}>⚡{ORIGEN_LABEL[s] || s}</span>
+      ))}
+    </div>
+  )
 }
 
 export default function Historial() {
@@ -32,6 +49,8 @@ export default function Historial() {
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [enrichingId, setEnrichingId] = useState(null)
+  const [enrichModalId, setEnrichModalId] = useState(null)
+  const [enrichMetodo, setEnrichMetodo] = useState('claude')
   const [showBloque, setShowBloque] = useState(false)
   const [nombreBloque, setNombreBloque] = useState('')
 
@@ -62,10 +81,12 @@ export default function Historial() {
     })
   }
 
-  const enriquecer = async (id) => {
+  const enriquecer = async () => {
+    const id = enrichModalId
+    setEnrichModalId(null)
     setEnrichingId(id)
     try {
-      await api.post(API_APIFY_ENRICH, { contacto_id: id })
+      await api.post(API_CONTACT_ENRICH(id), { metodo: enrichMetodo })
       toast.success('Contacto enriquecido')
       const { data } = await api.get(API_CONTACTS)
       setContactos(data.data || [])
@@ -157,7 +178,7 @@ export default function Historial() {
                   checked={selected.has(c.id)} enriching={enrichingId === c.id}
                   onCheck={() => toggleSelect(c.id)}
                   onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                  onEnrich={() => enriquecer(c.id)}
+                  onEnrich={() => setEnrichModalId(c.id)}
                   onDelete={() => setDeleteId(c.id)} />
               ))}
               {!paginados.length && <tr><td colSpan={8} className="empty-row">No hay contactos</td></tr>}
@@ -177,6 +198,26 @@ export default function Historial() {
         <ConfirmModal message="Este contacto sera eliminado permanentemente." onConfirm={eliminar} onCancel={() => setDeleteId(null)} />
       )}
 
+      {enrichModalId && (
+        <Modal title="Enriquecer contacto" onClose={() => setEnrichModalId(null)}>
+          <p className="text-sm text-secondary" style={{ marginBottom: '1rem' }}>
+            Seleccioná el método para buscar datos adicionales del contacto.
+          </p>
+          <div className="form-group">
+            <label htmlFor="enrich-metodo">Método de enriquecimiento</label>
+            <select id="enrich-metodo" value={enrichMetodo} onChange={(e) => setEnrichMetodo(e.target.value)}>
+              <option value="claude">Claude (IA)</option>
+              <option value="perplexity">Perplexity</option>
+              <option value="apollo">Apollo</option>
+            </select>
+          </div>
+          <div className="flex gap-sm" style={{ marginTop: '1rem' }}>
+            <Button onClick={enriquecer}>Enriquecer</Button>
+            <Button variant="ghost" onClick={() => setEnrichModalId(null)}>Cancelar</Button>
+          </div>
+        </Modal>
+      )}
+
       {showBloque && (
         <Modal title="Armar bloque" onClose={() => setShowBloque(false)}>
           <div className="form-group">
@@ -191,22 +232,22 @@ export default function Historial() {
 }
 
 function HistorialRow({ contacto: c, expanded, checked, enriching, onCheck, onToggle, onEnrich, onDelete }) {
-  const canEnrich = c.origen === 'apify'
   return (
     <>
       <tr className={expanded ? 'row-expanded' : ''}>
         <td><span className="expand-icon" onClick={onToggle}>{expanded ? '\u25BC' : '\u25B6'}</span></td>
         <td><input type="checkbox" checked={checked} onChange={onCheck} /></td>
-        <td>{c.nombre || '-'}</td>
+        <td>
+          {c.nombre || '-'}
+          <EnrichmentSourcesBadges sources={c.enrichment_sources} />
+        </td>
         <td>{c.empresa || '-'}</td>
         <td className="email-cell">{c.email_personal || '-'}</td>
         <td><ConfidenceBadge value={c.confianza} /></td>
         <td><OrigenBadge value={c.origen} /></td>
         <td className="flex gap-sm" style={{ justifyContent: 'flex-end' }}>
-          {canEnrich && (
-            <button className="delete-btn" title="Enriquecer con Apify" disabled={enriching} onClick={onEnrich}
-              style={{ opacity: enriching ? 0.5 : 1 }}>{enriching ? '...' : '⚡'}</button>
-          )}
+          <button className="delete-btn" title="Enriquecer contacto" disabled={enriching} onClick={onEnrich}
+            style={{ opacity: enriching ? 0.5 : 1 }}>{enriching ? '...' : '⚡'}</button>
           <button className="delete-btn" title="Eliminar" onClick={onDelete}>&#128465;</button>
         </td>
       </tr>

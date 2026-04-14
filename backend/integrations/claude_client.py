@@ -159,14 +159,44 @@ async def buscar_contactos(
         Lista de dicts con datos de contacto.
     """
     system = (
-        "Investigador comercial. Usá web_search para buscar datos reales.\n"
-        "ESTRATEGIA: 1) Buscar empresas de [rubro] en [ubicacion] 2) Por cada una buscar sitio web, "
-        "emails, telefonos y nombre del responsable (gerente/director/dueño).\n"
-        "REGLAS: nombre y empresa NUNCA null. NUNCA inventar datos (null si no encontras). "
-        "Excluir contactos sin al menos 1 email o 1 telefono.\n"
-        "Si hay un prompt_personalizado, usalo como filtro adicional para refinar la busqueda.\n"
-        "Confianza segun campos encontrados (email_empresarial, email_personal, telefono_empresa, telefono_personal): "
-        f"4=1.0 | 3=0.75 | 2=0.5 | 1=0.25. {_SAFE} {_JSON_ONLY}"
+        "Sos un investigador OSINT comercial de élite. Tenés acceso a web_search — usalo extensivamente.\n\n"
+        "ESTRATEGIA OBLIGATORIA (6 pasos por cada contacto):\n"
+        "PASO 1 — Identificar empresa y responsable:\n"
+        "  → Buscar '{rubro} {ubicacion} dueño propietario gerente director contacto'\n"
+        "  → LinkedIn empresa, Google Maps, sitio web oficial\n\n"
+        "PASO 2 — Email corporativo:\n"
+        "  → Buscar en sitio web oficial, Google Maps, Facebook página, LinkedIn empresa\n"
+        "  → '{nombre} {empresa} email contacto'\n"
+        "  → Mínimo 5 búsquedas antes de poner null\n\n"
+        "PASO 3 — Email personal:\n"
+        "  → '{nombre completo} gmail hotmail outlook'\n"
+        "  → LinkedIn perfil personal, Instagram bio, Facebook personal\n\n"
+        "PASO 4 — Teléfono y WhatsApp:\n"
+        "  → Sitio web oficial, Google Maps, Facebook página de empresa\n"
+        "  → '{nombre completo} whatsapp celular {ubicacion}'\n"
+        "  → LinkedIn, Instagram bio\n\n"
+        "PASO 5 — Redes sociales:\n"
+        "  → LinkedIn URL del perfil personal\n"
+        "  → Instagram: buscar '@{nombre}' o '{nombre} {empresa} instagram'\n"
+        "  → Facebook: página personal o de empresa\n\n"
+        "PASO 6 — Datos de empresa/ubicación:\n"
+        "  → Website oficial (URL completa)\n"
+        "  → Dirección física, ciudad, país (Google Maps, Facebook, sitio web)\n\n"
+        "REGLAS ESTRICTAS:\n"
+        "— nombre y empresa NUNCA null — buscá hasta encontrar el responsable real\n"
+        "— NUNCA inventar datos — null si no encontrás después de buscar\n"
+        "— Excluir contactos sin al menos 1 email O 1 teléfono\n"
+        "— Si hay prompt_personalizado, ES LA INSTRUCCIÓN MÁS IMPORTANTE\n"
+        "— Confianza por campos de contacto encontrados: 1.0=4+ | 0.75=3 | 0.5=2 | 0.25=1\n"
+        f"{_SAFE} {_JSON_ONLY}"
+    )
+    _json_template = (
+        '[{"nombre":"...","empresa":"...","cargo":"...",'
+        '"email_empresarial":"...","email_personal":"...",'
+        '"telefono_empresa":"...","telefono_personal":"...",'
+        '"linkedin_url":"...","instagram_username":"...","facebook_url":"...",'
+        '"whatsapp":"...","website":"...","direccion":"...","ciudad":"...","pais":"...",'
+        '"confianza":0.75,"origen":"ai"}]'
     )
     if prompt_personalizado:
         user = (
@@ -176,22 +206,16 @@ async def buscar_contactos(
             f"Cantidad: {cantidad}\n"
             f"Instrucción del usuario: {prompt_personalizado}\n"
             f"</user_input>\n\n"
-            f"Interpretá la instrucción del usuario para entender exactamente qué tipo de contactos buscar. "
-            f"Ejecutá la estrategia completa usando web_search.\n"
-            'Devolvé ÚNICAMENTE este JSON array:\n'
-            '[{"nombre":"...","empresa":"...","cargo":"...",'
-            '"email_empresarial":"...","email_personal":"...",'
-            '"telefono_empresa":"...","telefono_personal":"...",'
-            '"confianza":0.75,"origen":"ai"}]'
+            f"Interpretá la instrucción del usuario para entender qué contactos buscar. "
+            f"Ejecutá los 6 pasos de la estrategia usando web_search.\n"
+            f"Devolvé ÚNICAMENTE este JSON array:\n{_json_template}"
         )
     else:
         user = (
             f"<user_input>\nRubro: {rubro}\nUbicacion: {ubicacion}\nCantidad: {cantidad}\n"
             f"</user_input>\n"
-            "Usá web_search. Devolvé JSON array:\n"
-            '[{"nombre":"...","empresa":"...","cargo":"...","email_empresarial":"..."|null,'
-            '"email_personal":"..."|null,"telefono_empresa":"..."|null,"telefono_personal":"..."|null,'
-            '"confianza":0.75,"origen":"ai"}]'
+            f"Ejecutá los 6 pasos de la estrategia usando web_search.\n"
+            f"Devolvé JSON array:\n{_json_template}"
         )
     # Inferir rubro si no viene explícito pero hay prompt personalizado
     rubro_inferido = rubro

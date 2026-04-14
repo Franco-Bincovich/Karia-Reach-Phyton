@@ -36,6 +36,12 @@ async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
     return {"data": creado}
 
 
+async def enriquecer_contacto(contact_id: str, metodo: str, usuario_id: str = None) -> dict:
+    """Enriquece un contacto existente via el metodo especificado."""
+    actualizado = await contacts_service.enriquecer_contacto(contact_id, metodo, usuario_id)
+    return {"data": actualizado}
+
+
 async def eliminar(id: str) -> dict:
     """Elimina un contacto por id."""
     await contacts_service.eliminar(id)

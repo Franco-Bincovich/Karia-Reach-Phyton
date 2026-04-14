@@ -46,7 +46,15 @@ async def _obtener_key(usuario_id: str = None) -> str:
     return key
 
 
-async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10, usuario_id: str = None) -> list[dict]:
+async def buscar_contactos(
+    rubro: str,
+    ubicacion: str,
+    cantidad: int = 10,
+    usuario_id: str = None,
+    cargo: str | None = None,
+    tamano_empresa: str | None = None,
+    solo_email_verificado: bool = False,
+) -> list[dict]:
     """
     Busca contactos via Apollo API.
 
@@ -54,13 +62,20 @@ async def buscar_contactos(rubro: str, ubicacion: str, cantidad: int = 10, usuar
         rubro: titulo o rol a buscar.
         ubicacion: zona geografica.
         cantidad: cantidad de resultados.
+        cargo: titulo especifico adicional (opcional).
+        tamano_empresa: filtro de tamaño de empresa (opcional).
+        solo_email_verificado: si True filtra solo emails verificados.
 
     Returns:
-        Lista de contactos mapeados a nuestro schema.
+        Lista de contactos mapeados, filtrados por duplicados, anotados con ya_existe.
     """
+    from services.contacts_service import anotar_existencia
     key = await _obtener_key(usuario_id)
-    resultados = await apollo_client.buscar_personas(rubro, ubicacion, cantidad, key)
-    return await filtrar_duplicados(resultados, usuario_id)
+    resultados = await apollo_client.buscar_personas(
+        rubro, ubicacion, cantidad, key, cargo, tamano_empresa, solo_email_verificado,
+    )
+    resultados = await filtrar_duplicados(resultados, usuario_id)
+    return await anotar_existencia(resultados, usuario_id)
 
 
 async def enriquecer_contactos(contactos: list[dict], usuario_id: str = None) -> list[dict]:

@@ -70,6 +70,11 @@ class ManualContactRequest(ContactoBase):
     pass
 
 
+class EnrichRequest(BaseModel):
+    """Parametros de enriquecimiento de un contacto existente."""
+    metodo: str = Field("claude", description="Metodo: claude | perplexity | apollo")
+
+
 # --- Endpoints ---
 
 @router.get("")
@@ -104,6 +109,13 @@ async def agregar_manual(request: Request, body: ManualContactRequest) -> dict:
     """Agrega un contacto manualmente."""
     uid = get_usuario_id_from_request(request)
     return await contacts_controller.agregar_manual(body.model_dump(), uid)
+
+
+@router.post("/{contact_id}/enrich")
+async def enriquecer(request: Request, contact_id: UUID, body: EnrichRequest) -> dict:
+    """Enriquece un contacto existente via IA u otras fuentes."""
+    uid = get_usuario_id_from_request(request)
+    return await contacts_controller.enriquecer_contacto(str(contact_id), body.metodo, uid)
 
 
 @router.delete("/{contact_id}")

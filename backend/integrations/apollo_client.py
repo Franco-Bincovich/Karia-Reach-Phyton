@@ -127,7 +127,24 @@ async def _enriquecer_post_busqueda(
     return contactos
 
 
-async def buscar_personas(rubro: str, ubicacion: str, cantidad: int, api_key: str) -> list[dict]:
+_TAMANO_RANGES: dict = {
+    "micro": ["1,10"],
+    "pequena": ["11,50"],
+    "mediana": ["51,200", "201,500"],
+    "grande": ["501,1000", "1001,5000"],
+    "enterprise": ["5001,10000", "10001,"],
+}
+
+
+async def buscar_personas(
+    rubro: str,
+    ubicacion: str,
+    cantidad: int,
+    api_key: str,
+    cargo: str | None = None,
+    tamano_empresa: str | None = None,
+    solo_email_verificado: bool = False,
+) -> list[dict]:
     """
     Busca contactos en Apollo via mixed_people search.
 
@@ -136,21 +153,32 @@ async def buscar_personas(rubro: str, ubicacion: str, cantidad: int, api_key: st
         ubicacion: ubicacion geografica.
         cantidad: cantidad de resultados (max 100).
         api_key: API key de Apollo.
+        cargo: titulo especifico adicional (opcional).
+        tamano_empresa: 'micro' | 'pequena' | 'mediana' | 'grande' | 'enterprise' (opcional).
+        solo_email_verificado: si True filtra solo contactos con email verificado.
 
     Returns:
         Lista de contactos mapeados a nuestro schema.
     """
+    titulos = [rubro]
+    if cargo and cargo.strip() and cargo.strip().lower() != rubro.strip().lower():
+        titulos.append(cargo.strip())
+    payload: dict = {
+        "person_titles": titulos,
+        "person_locations": ["Argentina"],
+        "organization_locations": ["Argentina"],
+        "per_page": min(cantidad, 100),
+    }
+    if tamano_empresa and tamano_empresa.lower() in _TAMANO_RANGES:
+        payload["organization_num_employees_ranges"] = _TAMANO_RANGES[tamano_empresa.lower()]
+    if solo_email_verificado:
+        payload["contact_email_status_cd"] = ["verified"]
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
                 f"{_BASE}/api/v1/mixed_people/api_search",
                 headers=_headers(api_key),
-                json={
-                    "person_titles": [rubro],
-                    "person_locations": ["Argentina"],
-                    "organization_locations": ["Argentina"],
-                    "per_page": min(cantidad, 100),
-                },
+                json=payload,
             )
             resp.raise_for_status()
             personas = resp.json().get("people", [])

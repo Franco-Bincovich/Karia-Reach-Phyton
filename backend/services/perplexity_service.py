@@ -62,8 +62,10 @@ async def buscar_contactos(
     Returns:
         Lista de contactos mapeados, filtrados por duplicados.
     """
+    from services.contacts_service import anotar_existencia
     key = await _obtener_key(usuario_id)
     resultados = await perplexity_client.buscar_contactos(
         rubro, ubicacion, cantidad, prompt_personalizado, key,
     )
-    return await filtrar_duplicados(resultados, usuario_id)
+    resultados = await filtrar_duplicados(resultados, usuario_id)
+    return await anotar_existencia(resultados, usuario_id)

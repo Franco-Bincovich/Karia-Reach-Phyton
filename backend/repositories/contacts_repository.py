@@ -20,7 +20,17 @@ log = get_logger(__name__)
 _TABLE = "contacts"
 
 
-_CAMPOS_STR_NO_NULL = ("email_empresarial", "email_personal", "telefono_empresa", "telefono_personal", "linkedin_url")
+_CAMPOS_STR_NO_NULL = (
+    "email_empresarial", "email_personal", "telefono_empresa", "telefono_personal",
+    "linkedin_url", "instagram_username", "facebook_url", "whatsapp",
+    "website", "direccion", "ciudad", "pais",
+)
+
+_CAMPOS_MERGE = (
+    "cargo", "email_empresarial", "email_personal", "telefono_empresa", "telefono_personal",
+    "linkedin_url", "instagram_username", "facebook_url", "whatsapp",
+    "website", "direccion", "ciudad", "pais", "confianza",
+)
 
 
 def _normalizar_contacto(contacto: dict) -> dict:
@@ -239,3 +249,122 @@ async def eliminar(id: str) -> bool:
     except Exception as exc:
         log.error("Error eliminando contacto %s: %s", id, exc)
         raise AppError("Error al eliminar contacto", "DB_CONTACTS_DELETE", 500) from exc
+
+
+async def listar_emails_con_ids(usuario_id: str = None) -> dict:
+    """Devuelve dict email.lower() -> contact_id para deteccion de duplicados con ID."""
+    try:
+        loop = asyncio.get_event_loop()
+        def _q():
+            q = get_supabase_client().table(_TABLE).select("id, email_empresarial, email_personal")
+            if usuario_id:
+                q = q.eq("usuario_id", usuario_id)
+            return q.execute()
+        resp = await loop.run_in_executor(None, _q)
+        mapping = {}
+        for row in resp.data:
+            if row.get("email_empresarial"):
+                mapping[row["email_empresarial"].lower()] = row["id"]
+            if row.get("email_personal"):
+                mapping[row["email_personal"].lower()] = row["id"]
+        return mapping
+    except Exception as exc:
+        log.error("Error listando emails con IDs: %s", exc)
+        return {}
+
+
+async def find_similar(
+    usuario_id: str,
+    nombre: str = None,
+    empresa: str = None,
+    email: str = None,
+) -> Optional[dict]:
+    """Busca un contacto existente por email o por nombre+empresa (coincidencia parcial)."""
+    if email:
+        try:
+            encontrado = await buscar_por_email(email)
+            if encontrado and encontrado.get("usuario_id") == usuario_id:
+                return encontrado
+        except Exception:
+            pass
+    if nombre and empresa:
+        try:
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(None, lambda: (
+                get_supabase_client().table(_TABLE).select("*")
+                .eq("usuario_id", usuario_id)
+                .ilike("nombre", f"%{nombre}%")
+                .ilike("empresa", f"%{empresa}%")
+                .limit(1).execute()
+            ))
+            return resp.data[0] if resp.data else None
+        except Exception as exc:
+            log.error("Error en find_similar nombre/empresa: %s", exc)
+    return None
+
+
+async def merge_contact(contact_id: str, nuevos_datos: dict, source: str, usuario_id: str) -> dict:
+    """
+    Actualiza un contacto solo en los campos que estan vacios/nulos.
+
+    Args:
+        contact_id: UUID del contacto a actualizar.
+        nuevos_datos: dict con los datos nuevos a mergear.
+        source: nombre del origen del enriquecimiento (ej: 'claude', 'apollo').
+        usuario_id: ID del usuario propietario.
+
+    Returns:
+        Dict del contacto actualizado.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).select("*")
+            .eq("id", contact_id).eq("usuario_id", usuario_id).limit(1).execute()
+        ))
+        if not resp.data:
+            raise AppError("Contacto no encontrado", "CONTACT_NOT_FOUND", 404)
+        actual = resp.data[0]
+        campos_a_actualizar: dict = {}
+        for campo in _CAMPOS_MERGE:
+            valor_nuevo = nuevos_datos.get(campo)
+            valor_actual = actual.get(campo)
+            if valor_nuevo and not valor_actual:
+                campos_a_actualizar[campo] = valor_nuevo
+        # Acumular enrichment_sources
+        sources_actuales = actual.get("enrichment_sources") or []
+        if source not in sources_actuales:
+            sources_actuales = list(sources_actuales) + [source]
+            campos_a_actualizar["enrichment_sources"] = sources_actuales
+        if not campos_a_actualizar:
+            log.info("merge_contact %s: nada nuevo para mergear", contact_id)
+            return actual
+        resp_update = await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table(_TABLE).update(campos_a_actualizar)
+            .eq("id", contact_id).execute()
+        ))
+        log.info("merge_contact %s: campos actualizados %s", contact_id, list(campos_a_actualizar.keys()))
+        return resp_update.data[0] if resp_update.data else actual
+    except AppError:
+        raise
+    except Exception as exc:
+        log.error("Error en merge_contact %s: %s", contact_id, exc)
+        raise AppError("Error al actualizar contacto", "DB_CONTACTS_MERGE", 500) from exc
+
+
+async def save_enrichment_log(
+    contact_id: str, usuario_id: str, source: str, fields_added: list,
+) -> None:
+    """Guarda un registro de enriquecimiento. Falla silenciosamente si la tabla no existe."""
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: (
+            get_supabase_client().table("enrichment_logs").insert({
+                "contact_id": contact_id,
+                "usuario_id": usuario_id,
+                "source": source,
+                "fields_added": fields_added,
+            }).execute()
+        ))
+    except Exception as exc:
+        log.warning("save_enrichment_log: no se pudo guardar (%s)", exc)

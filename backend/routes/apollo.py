@@ -9,7 +9,7 @@ Endpoints:
   POST   /api/apollo/enrich
 """
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -33,6 +33,9 @@ class SearchRequest(BaseModel):
     rubro: str = Field(..., min_length=2, description="Titulo o rol a buscar")
     ubicacion: str = Field(..., min_length=2, description="Zona geografica")
     cantidad: int = Field(10, ge=1, le=100)
+    cargo: Optional[str] = Field(None, description="Titulo especifico adicional")
+    tamano_empresa: Optional[str] = Field(None, description="micro | pequena | mediana | grande | enterprise")
+    solo_email_verificado: bool = Field(False, description="Filtrar solo emails verificados")
 
 
 class ContactoEnrich(BaseModel):
@@ -74,7 +77,10 @@ async def eliminar_config(request: Request) -> dict:
 async def buscar(request: Request, body: SearchRequest) -> dict:
     """Busca contactos en Apollo."""
     uid = get_usuario_id_from_request(request)
-    return await apollo_controller.buscar(body.rubro, body.ubicacion, body.cantidad, uid)
+    return await apollo_controller.buscar(
+        body.rubro, body.ubicacion, body.cantidad, uid,
+        body.cargo, body.tamano_empresa, body.solo_email_verificado,
+    )
 
 
 @router.post("/enrich")

@@ -5,6 +5,7 @@ export const API_CONTACTS_SEARCH_AI = '/api/contacts/search-ai'
 export const API_CONTACTS_SAVE = '/api/contacts/save-selection'
 export const API_CONTACTS_MANUAL = '/api/contacts/manual'
 export const API_CONTACT_DELETE = (id) => `/api/contacts/${id}`
+export const API_CONTACT_ENRICH = (id) => `/api/contacts/${id}/enrich`
 export const API_COMPOSE_GENERATE = '/api/compose/generate'
 export const API_COMPOSE_FROM_CONTACTS = '/api/compose/generate-from-contacts'
 export const API_COMPOSE_TEMPLATES = '/api/compose/templates'

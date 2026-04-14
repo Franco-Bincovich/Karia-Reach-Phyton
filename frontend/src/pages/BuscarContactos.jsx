@@ -1,25 +1,41 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_CONTACTS, API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL, API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS, API_APIFY_STATUS, API_APIFY_SEARCH, API_BLOQUES, API_BLOQUE_CONTACTOS } from '../constants/api'
+import {
+  API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL,
+  API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS,
+  API_APIFY_STATUS, API_APIFY_SEARCH, API_BLOQUES, API_BLOQUE_CONTACTOS,
+  API_CONTACT_ENRICH,
+} from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
 import Modal from '../components/UI/Modal'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
 
+const TAMANO_OPCIONES = [
+  { value: '', label: 'Cualquier tamaño' },
+  { value: 'micro', label: 'Micro (1-10)' },
+  { value: 'pequena', label: 'Pequeña (11-50)' },
+  { value: 'mediana', label: 'Mediana (51-500)' },
+  { value: 'grande', label: 'Grande (501-5000)' },
+  { value: 'enterprise', label: 'Enterprise (5000+)' },
+]
+
 export default function BuscarContactos() {
   const toast = useToast()
   const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10, prompt_personalizado: '' })
+  const [apolloForm, setApolloForm] = useState({ cargo: '', tamano_empresa: '', solo_email_verificado: false })
+  const [pais, setPais] = useState('')
   const [metodo, setMetodo] = useState('ai')
   const [apolloOk, setApolloOk] = useState(null)
   const [perplexityOk, setPerplexityOk] = useState(null)
   const [apifyOk, setApifyOk] = useState(null)
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
+  const [enrichingId, setEnrichingId] = useState(null)
   const [showManual, setShowManual] = useState(false)
   const [manual, setManual] = useState({ nombre: '', empresa: '', email_empresarial: '', cargo: '' })
-  const [pais, setPais] = useState('')
   const [showBloque, setShowBloque] = useState(false)
   const [nombreBloque, setNombreBloque] = useState('')
 
@@ -43,7 +59,8 @@ export default function BuscarContactos() {
   const selCount = results.filter((c) => c._selected).length
 
   const COLUMNS = [
-    { key: '_check', label: '', width: '40px',
+    {
+      key: '_check', label: '', width: '40px',
       headerRender: () => <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleccionar todos" />,
       render: (_, row) => <input type="checkbox" checked={row._selected || false} readOnly aria-label={`Seleccionar ${row.nombre || 'contacto'}`} />,
     },
@@ -56,11 +73,36 @@ export default function BuscarContactos() {
     { key: 'telefono_personal', label: 'Tel. Personal' },
     { key: 'linkedin_url', label: 'LinkedIn', render: (v) => v ? <a href={v} target="_blank" rel="noopener noreferrer" title="Ver LinkedIn">🔗</a> : '-' },
     { key: 'confianza', label: 'Confianza', render: (v) => <ConfidenceBadge value={v} /> },
+    {
+      key: '_estado', label: 'Estado', width: '130px',
+      render: (_, row) => {
+        if (row.ya_existe) {
+          return (
+            <div className="flex gap-sm" style={{ alignItems: 'center' }}>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px',
+                borderRadius: 10, background: '#D1FAE5', color: '#065F46', whiteSpace: 'nowrap',
+              }}>Ya en KarIA</span>
+              <button
+                title="Enriquecer contacto existente"
+                disabled={enrichingId === row.contact_id_existente}
+                onClick={(e) => { e.stopPropagation(); enriquecerExistente(row) }}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem',
+                  opacity: enrichingId === row.contact_id_existente ? 0.4 : 1,
+                }}
+              >{enrichingId === row.contact_id_existente ? '...' : '⚡'}</button>
+            </div>
+          )
+        }
+        return <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Nuevo</span>
+      },
+    },
   ]
 
   const buscar = async () => {
     if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
-    if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa una ubicacion')
+    if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim() && metodo !== 'apollo') return toast.error('Ingresa una ubicacion')
     if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
     if (metodo === 'perplexity' && !perplexityOk) return toast.error('Configurá tu API key de Perplexity en Configuración')
     if (metodo === 'apify' && !apifyOk) return toast.error('Configurá tu API key de Apify en Configuración')
@@ -70,12 +112,28 @@ export default function BuscarContactos() {
       const endpoint = endpoints[metodo]
       const payload = { ...form }
       if (metodo === 'apify') payload.pais = pais
+      if (metodo === 'apollo') {
+        if (apolloForm.cargo.trim()) payload.cargo = apolloForm.cargo.trim()
+        if (apolloForm.tamano_empresa) payload.tamano_empresa = apolloForm.tamano_empresa
+        if (apolloForm.solo_email_verificado) payload.solo_email_verificado = true
+      }
       if (!payload.prompt_personalizado?.trim()) delete payload.prompt_personalizado
       const { data } = await api.post(endpoint, payload)
       setResults((data.data || []).map((c) => ({ ...c, _selected: false })))
       toast.success(`${data.total} contactos encontrados`)
     } catch (err) { toast.error(err.message) }
     finally { setLoading(false) }
+  }
+
+  const enriquecerExistente = async (row) => {
+    const cid = row.contact_id_existente
+    if (!cid) return
+    setEnrichingId(cid)
+    try {
+      await api.post(API_CONTACT_ENRICH(cid), { metodo })
+      toast.success('Contacto enriquecido con los nuevos datos')
+    } catch (err) { toast.error(err.message) }
+    finally { setEnrichingId(null) }
   }
 
   const toggleSelect = (row) => {
@@ -100,7 +158,6 @@ export default function BuscarContactos() {
     if (!nombreBloque.trim()) return toast.error('Ingresa un nombre para el bloque')
     const sel = results.filter((c) => c._selected).map(({ _selected, ...rest }) => ({ ...rest, rubro: (rest.rubro && rest.rubro.trim()) ? rest.rubro : form.rubro }))
     try {
-      // Primero guardar contactos, luego crear bloque y agregar
       const { data: saveData } = await api.post(API_CONTACTS_SAVE, { contactos: sel })
       const ids = (saveData.data || []).map((c) => c.id)
       if (ids.length) {
@@ -125,6 +182,7 @@ export default function BuscarContactos() {
   return (
     <div>
       <div className="card mb-md">
+        {/* Formulario base compartido */}
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="buscar-rubro">Rubro / Industria</label>
@@ -139,6 +197,29 @@ export default function BuscarContactos() {
             <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => { const v = Math.min(50, Math.max(5, +e.target.value || 5)); setForm({ ...form, cantidad: v }) }} />
           </div>
         </div>
+
+        {/* Formulario específico por método */}
+        {metodo === 'apollo' && (
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="apollo-cargo">Cargo específico</label>
+              <input id="apollo-cargo" value={apolloForm.cargo} onChange={(e) => setApolloForm({ ...apolloForm, cargo: e.target.value })} placeholder="Ej: CEO, Director Comercial" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="apollo-tamano">Tamaño de empresa</label>
+              <select id="apollo-tamano" value={apolloForm.tamano_empresa} onChange={(e) => setApolloForm({ ...apolloForm, tamano_empresa: e.target.value })}>
+                {TAMANO_OPCIONES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ justifyContent: 'flex-end', paddingTop: '1.6rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={apolloForm.solo_email_verificado} onChange={(e) => setApolloForm({ ...apolloForm, solo_email_verificado: e.target.checked })} />
+                Solo email verificado
+              </label>
+            </div>
+          </div>
+        )}
+
         {metodo === 'apify' && (
           <div className="form-row">
             <div className="form-group">
@@ -147,12 +228,14 @@ export default function BuscarContactos() {
             </div>
           </div>
         )}
+
         <div className="form-group">
           <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
           <input id="buscar-prompt" value={form.prompt_personalizado}
             onChange={(e) => setForm({ ...form, prompt_personalizado: e.target.value })}
-            placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia, de empresas con más de 50 empleados" />
+            placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia" />
         </div>
+
         <div className="flex gap-sm">
           <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
           <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
@@ -176,7 +259,7 @@ export default function BuscarContactos() {
       {results.length > 0 && (
         <div className="card">
           <div className="flex-between mb-md">
-            <span className="text-sm text-secondary">{selCount} seleccionados</span>
+            <span className="text-sm text-secondary">{selCount} seleccionados · {results.filter(c => c.ya_existe).length} ya en KarIA</span>
             <div className="flex gap-sm">
               {selCount > 0 && <Button size="sm" variant="ghost" onClick={() => setShowBloque(true)}>Armar bloque</Button>}
               <Button size="sm" onClick={guardar}>Guardar seleccion</Button>

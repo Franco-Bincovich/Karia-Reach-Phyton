@@ -83,25 +83,26 @@ async def buscar_contactos(
         "— Confianza: 1.0=4 campos | 0.75=3 | 0.5=2 | 0.25=1\n"
         "Respondé ÚNICAMENTE con un array JSON, sin texto adicional."
     )
+    _json_template = (
+        '[{"nombre":"...","empresa":"...","cargo":"...",'
+        '"email_empresarial":"...","email_personal":"...",'
+        '"telefono_empresa":"...","telefono_personal":"...",'
+        '"linkedin_url":"...","instagram_username":"...","facebook_url":"...",'
+        '"whatsapp":"...","website":"...","direccion":"...","ciudad":"...","pais":"...",'
+        '"confianza":0.75,"origen":"perplexity"}]'
+    )
     if prompt_personalizado:
         user = (
             f"{'Rubro: ' + rubro if rubro else ''}\n"
             f"{'Ubicacion: ' + ubicacion if ubicacion else ''}\n"
             f"Cantidad: {cantidad}\n"
             f"Instrucción del usuario: {prompt_personalizado}\n\n"
-            'Devolvé ÚNICAMENTE este JSON array:\n'
-            '[{"nombre":"...","empresa":"...","cargo":"...",'
-            '"email_empresarial":"...","email_personal":"...",'
-            '"telefono_empresa":"...","telefono_personal":"...",'
-            '"confianza":0.75,"origen":"perplexity"}]'
+            f"Devolvé ÚNICAMENTE este JSON array:\n{_json_template}"
         )
     else:
         user = (
             f"Rubro: {rubro}\nUbicacion: {ubicacion}\nCantidad: {cantidad}\n\n"
-            "Devolvé JSON array:\n"
-            '[{"nombre":"...","empresa":"...","cargo":"...","email_empresarial":"..."|null,'
-            '"email_personal":"..."|null,"telefono_empresa":"..."|null,"telefono_personal":"..."|null,'
-            '"confianza":0.75,"origen":"perplexity"}]'
+            f"Devolvé JSON array:\n{_json_template}"
         )
     payload = {
         "model": _MODEL,
