@@ -1,0 +1,138 @@
+"""
+Servicio de scraping — orquesta crawl, extraccion y formateo de contactos.
+
+Gestiona las preferencias del usuario y convierte emails encontrados
+en contactos con formato estandar.
+"""
+
+from __future__ import annotations
+
+import json
+from urllib.parse import urlparse
+
+from integrations import scraping_client
+from logger import get_logger
+from middleware.error_handler import AppError
+from repositories import integrations_repository
+from services.contacts_service import anotar_existencia
+
+log = get_logger(__name__)
+
+_SERVICIO = "scraping_preferencias"
+_DOMINIOS_BLOQUEADOS = {
+    "facebook.com", "instagram.com", "twitter.com", "x.com",
+    "tiktok.com", "linkedin.com", "youtube.com", "wikipedia.org",
+}
+_PREFS_DEFAULT: dict = {
+    "extraer_emails": True,
+    "extraer_telefonos": True,
+    "extraer_autoridades": True,
+    "extraer_direcciones": False,
+    "max_paginas": 60,
+    "profundidad": 3,
+    "guardar_directo": False,
+}
+
+
+async def obtener_preferencias(usuario_id: str) -> dict:
+    """
+    Devuelve preferencias de scraping del usuario.
+
+    Returns defaults si el usuario no tiene preferencias guardadas.
+    """
+    raw = await integrations_repository.obtener_api_key(_SERVICIO, usuario_id)
+    if raw:
+        try:
+            return {**_PREFS_DEFAULT, **json.loads(raw)}
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return dict(_PREFS_DEFAULT)
+
+
+async def guardar_preferencias(usuario_id: str, preferencias: dict) -> None:
+    """
+    Persiste preferencias de scraping del usuario.
+
+    Almacena el JSON en la tabla integraciones con servicio='scraping_preferencias'.
+    """
+    merged = {**_PREFS_DEFAULT, **preferencias}
+    await integrations_repository.guardar_api_key(_SERVICIO, json.dumps(merged), usuario_id)
+
+
+def _es_url_valida(url: str) -> bool:
+    """
+    Valida que la URL no sea una red social ni dominio personal bloqueado.
+
+    Returns:
+        True si la URL es apta para scrapear.
+    """
+    try:
+        netloc = urlparse(url).netloc.lower().removeprefix("www.")
+        return not any(bloq in netloc for bloq in _DOMINIOS_BLOQUEADOS)
+    except Exception:
+        return False
+
+
+async def buscar_por_scraping(
+    entradas: list[str],
+    usuario_id: str,
+    preferencias: dict,
+) -> list[dict]:
+    """
+    Crawlea cada sitio y extrae contactos con formato estandar.
+
+    Para cada entrada: resuelve URL, valida dominio, crawlea el sitio,
+    extrae datos de contacto y los convierte al formato interno.
+
+    Args:
+        entradas: lista de URLs o nombres de sitios/instituciones.
+        usuario_id: ID del usuario que realiza la busqueda.
+        preferencias: configuracion de extraccion del usuario.
+
+    Returns:
+        Lista de contactos en formato estandar con flag ya_existe.
+    """
+    if not entradas:
+        raise AppError("Se requiere al menos una entrada", "SCRAPING_EMPTY", 400)
+    if len(entradas) > 20:
+        raise AppError("Maximo 20 sitios por busqueda", "SCRAPING_LIMIT", 400)
+
+    prefs = {**_PREFS_DEFAULT, **preferencias}
+    max_pags = max(1, min(100, int(prefs.get("max_paginas", 60))))
+    profundidad = max(1, min(5, int(prefs.get("profundidad", 3))))
+    contactos: list[dict] = []
+
+    for entrada in entradas:
+        entrada = entrada.strip()
+        if not entrada:
+            continue
+        try:
+            url = await scraping_client.resolver_url(entrada)
+            if not _es_url_valida(url):
+                log.warning("URL bloqueada (red social/personal): %s", url)
+                continue
+            resultado = await scraping_client.crawl_sitio(
+                url, max_paginas=max_pags, profundidad=profundidad,
+            )
+            extraidos = scraping_client.extraer_contactos(resultado["texto_completo"], prefs)
+            dominio = urlparse(url).netloc.removeprefix("www.")
+            tel_principal = extraidos["telefonos"][0] if extraidos["telefonos"] else None
+            for email in extraidos["emails"]:
+                contactos.append({
+                    "nombre": None,
+                    "empresa": dominio,
+                    "email_empresarial": email,
+                    "telefono_empresa": tel_principal,
+                    "origen": "scraping",
+                    "confianza": 0.5,
+                })
+            log.info(
+                "Scraping %s: %d emails, %d tel, %d pags",
+                url, len(extraidos["emails"]), len(extraidos["telefonos"]),
+                resultado["paginas_visitadas"],
+            )
+        except AppError as exc:
+            log.warning("Error scraping '%s': %s", entrada, exc.message)
+            continue
+
+    return await anotar_existencia(contactos, usuario_id)

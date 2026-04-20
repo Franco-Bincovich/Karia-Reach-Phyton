@@ -5,7 +5,7 @@ import {
   API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL,
   API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS,
   API_APIFY_STATUS, API_APIFY_SEARCH, API_BLOQUES, API_BLOQUE_CONTACTOS,
-  API_CONTACT_ENRICH,
+  API_CONTACT_ENRICH, API_SCRAPING_BUSCAR,
 } from '../constants/api'
 import Button from '../components/UI/Button'
 import Table from '../components/UI/Table'
@@ -26,6 +26,7 @@ export default function BuscarContactos() {
   const toast = useToast()
   const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10, prompt_personalizado: '' })
   const [apolloForm, setApolloForm] = useState({ cargo: '', tamano_empresa: '', solo_email_verificado: false })
+  const [scrapingForm, setScrapingForm] = useState({ entradas: '' })
   const [pais, setPais] = useState('')
   const [metodo, setMetodo] = useState('ai')
   const [apolloOk, setApolloOk] = useState(null)
@@ -101,6 +102,18 @@ export default function BuscarContactos() {
   ]
 
   const buscar = async () => {
+    if (metodo === 'scraping') {
+      const entradas = scrapingForm.entradas.split('\n').map(l => l.trim()).filter(Boolean)
+      if (!entradas.length) return toast.error('Ingresa al menos un sitio a scrapear')
+      setLoading(true)
+      try {
+        const { data } = await api.post(API_SCRAPING_BUSCAR, { entradas })
+        setResults((data.data || []).map((c) => ({ ...c, _selected: false })))
+        toast.success(`${data.total} contactos encontrados`)
+      } catch (err) { toast.error(err.message) }
+      finally { setLoading(false) }
+      return
+    }
     if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
     if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim() && metodo !== 'apollo') return toast.error('Ingresa una ubicacion')
     if (metodo === 'apollo' && !apolloOk) return toast.error('Configurá tu API key de Apollo en Configuración')
@@ -182,21 +195,23 @@ export default function BuscarContactos() {
   return (
     <div>
       <div className="card mb-md">
-        {/* Formulario base compartido */}
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="buscar-rubro">Rubro / Industria</label>
-            <input id="buscar-rubro" value={form.rubro} onChange={(e) => setForm({ ...form, rubro: e.target.value })} placeholder="Ej: Tecnologia" />
+        {/* Formulario base compartido (no aplica en scraping) */}
+        {metodo !== 'scraping' && (
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="buscar-rubro">Rubro / Industria</label>
+              <input id="buscar-rubro" value={form.rubro} onChange={(e) => setForm({ ...form, rubro: e.target.value })} placeholder="Ej: Tecnologia" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="buscar-ubicacion">Ubicacion</label>
+              <input id="buscar-ubicacion" value={form.ubicacion} onChange={(e) => setForm({ ...form, ubicacion: e.target.value })} placeholder="Ej: Buenos Aires" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="buscar-cantidad">Cantidad</label>
+              <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => { const v = Math.min(50, Math.max(5, +e.target.value || 5)); setForm({ ...form, cantidad: v }) }} />
+            </div>
           </div>
-          <div className="form-group">
-            <label htmlFor="buscar-ubicacion">Ubicacion</label>
-            <input id="buscar-ubicacion" value={form.ubicacion} onChange={(e) => setForm({ ...form, ubicacion: e.target.value })} placeholder="Ej: Buenos Aires" />
-          </div>
-          <div className="form-group">
-            <label htmlFor="buscar-cantidad">Cantidad</label>
-            <input id="buscar-cantidad" type="number" min={5} max={50} value={form.cantidad} onChange={(e) => { const v = Math.min(50, Math.max(5, +e.target.value || 5)); setForm({ ...form, cantidad: v }) }} />
-          </div>
-        </div>
+        )}
 
         {/* Formulario específico por método */}
         {metodo === 'apollo' && (
@@ -229,18 +244,38 @@ export default function BuscarContactos() {
           </div>
         )}
 
-        <div className="form-group">
-          <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
-          <input id="buscar-prompt" value={form.prompt_personalizado}
-            onChange={(e) => setForm({ ...form, prompt_personalizado: e.target.value })}
-            placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia" />
-        </div>
+        {metodo === 'scraping' && (
+          <div className="form-group">
+            <label htmlFor="scraping-entradas">Sitios a scrapear</label>
+            <textarea
+              id="scraping-entradas"
+              rows={5}
+              value={scrapingForm.entradas}
+              onChange={(e) => setScrapingForm({ entradas: e.target.value })}
+              placeholder={'https://municipio.gob.ar\nMunicipio de Río Cuarto Córdoba\nhttps://hotelxyz.com'}
+              style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '0.5rem', borderRadius: 6, border: '1px solid var(--border)' }}
+            />
+            <p className="text-sm text-secondary" style={{ marginTop: '0.35rem' }}>
+              Podés pegar URLs directas o escribir el nombre del lugar — lo buscamos automáticamente
+            </p>
+          </div>
+        )}
+
+        {metodo !== 'scraping' && (
+          <div className="form-group">
+            <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
+            <input id="buscar-prompt" value={form.prompt_personalizado}
+              onChange={(e) => setForm({ ...form, prompt_personalizado: e.target.value })}
+              placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia" />
+          </div>
+        )}
 
         <div className="flex gap-sm">
           <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
           <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
           <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>
           <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>
+          <Button variant={metodo === 'scraping' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('scraping')}>Scraping Web</Button>
           <div style={{ flex: 1 }} />
           <Button onClick={buscar}>Buscar</Button>
           <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>

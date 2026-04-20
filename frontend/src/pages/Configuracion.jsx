@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_APOLLO_STATUS, API_APOLLO_CONFIG, API_PERPLEXITY_STATUS, API_PERPLEXITY_CONFIG, API_APIFY_STATUS, API_APIFY_CONFIG } from '../constants/api'
+import { API_APOLLO_STATUS, API_APOLLO_CONFIG, API_PERPLEXITY_STATUS, API_PERPLEXITY_CONFIG, API_APIFY_STATUS, API_APIFY_CONFIG, API_SCRAPING_PREFERENCIAS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Badge from '../components/UI/Badge'
 import ConfirmModal from '../components/UI/ConfirmModal'
@@ -17,8 +17,13 @@ export default function Configuracion() {
   const [loading, setLoading] = useState(false)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [showConfirm, setShowConfirm] = useState(null)
+  const [scrapingPrefs, setScrapingPrefs] = useState({ extraer_emails: true, extraer_telefonos: true, extraer_autoridades: true, extraer_direcciones: false, max_paginas: 60, profundidad: 3, guardar_directo: false })
+  const [loadingPrefs, setLoadingPrefs] = useState(false)
 
-  useEffect(() => { checkStatus() }, [])
+  useEffect(() => {
+    checkStatus()
+    api.get(API_SCRAPING_PREFERENCIAS).then(({ data }) => setScrapingPrefs(data.data)).catch(() => {})
+  }, [])
 
   const checkStatus = async () => {
     setLoadingStatus(true)
@@ -37,6 +42,15 @@ export default function Configuracion() {
       toast.success(`API key de ${servicio} guardada`); clearKey(''); checkStatus()
     } catch (err) { toast.error(err.message) }
     finally { setLoading(false) }
+  }
+
+  const guardarScrapingPrefs = async () => {
+    setLoadingPrefs(true)
+    try {
+      await api.post(API_SCRAPING_PREFERENCIAS, scrapingPrefs)
+      toast.success('Preferencias de scraping guardadas')
+    } catch (err) { toast.error(err.message) }
+    finally { setLoadingPrefs(false) }
   }
 
   const eliminar = async (servicio) => {
@@ -112,6 +126,43 @@ export default function Configuracion() {
           <Button loading={loading} onClick={() => guardarIntegracion('Apify', API_APIFY_CONFIG, apifyKey, setApifyKey)}>Guardar</Button>
           {apifyStatus && <Button variant="danger" onClick={() => setShowConfirm('apify')}>Eliminar</Button>}
         </div>
+      </div>
+
+      <div className="card mb-md" style={{ maxWidth: 600 }}>
+        <h3 className="mb-md">Preferencias de scraping</h3>
+        <p className="text-sm text-secondary mb-md">
+          Configurá qué datos extraer al usar el método Scraping Web en Buscar Contactos.
+        </p>
+        {[
+          { key: 'extraer_emails', label: 'Extraer emails' },
+          { key: 'extraer_telefonos', label: 'Extraer teléfonos' },
+          { key: 'extraer_autoridades', label: 'Extraer nombres de autoridades' },
+          { key: 'extraer_direcciones', label: 'Extraer direcciones' },
+          { key: 'guardar_directo', label: 'Guardar contactos directo sin mostrar' },
+        ].map(({ key, label }) => (
+          <div className="form-group" key={key}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!scrapingPrefs[key]}
+                onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, [key]: e.target.checked })} />
+              {label}
+            </label>
+          </div>
+        ))}
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="scraping-max-paginas">Páginas máximas (10-100)</label>
+            <input id="scraping-max-paginas" type="number" min={10} max={100}
+              value={scrapingPrefs.max_paginas}
+              onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, max_paginas: Math.min(100, Math.max(10, +e.target.value || 60)) })} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="scraping-profundidad">Profundidad de crawl (1-5)</label>
+            <input id="scraping-profundidad" type="number" min={1} max={5}
+              value={scrapingPrefs.profundidad}
+              onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, profundidad: Math.min(5, Math.max(1, +e.target.value || 3)) })} />
+          </div>
+        </div>
+        <Button loading={loadingPrefs} onClick={guardarScrapingPrefs}>Guardar preferencias</Button>
       </div>
 
       {showConfirm && (

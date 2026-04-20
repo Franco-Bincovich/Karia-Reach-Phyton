@@ -37,3 +37,5 @@ export const API_ADMIN_USUARIOS = '/api/admin/usuarios'
 export const API_ADMIN_USUARIO = (id) => `/api/admin/usuarios/${id}`
 export const API_CAMPANAS_PROGRAMADAS = '/api/campanas-programadas'
 export const API_CAMPANA_PROGRAMADA_CANCEL = (id) => `/api/campanas-programadas/${id}`
+export const API_SCRAPING_BUSCAR = '/api/scraping/buscar'
+export const API_SCRAPING_PREFERENCIAS = '/api/scraping/preferencias'
