@@ -7,10 +7,9 @@ desacoplada del flujo principal de campanas.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
+import uuid
 
-from integrations.supabase_client import get_supabase_client
+from integrations.postgres_client import get_pool
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -25,19 +24,17 @@ async def registrar_apertura(campaign_id: str, contact_id: str) -> bool:
     Returns:
         True si se actualizo al menos un registro.
     """
-    ahora = datetime.now(timezone.utc).isoformat()
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table("campaign_results")
-            .update({"opened_at": ahora})
-            .eq("campaign_id", campaign_id)
-            .eq("contact_id", contact_id)
-            .execute()
-        ))
-        actualizado = len(resp.data) > 0
+        async with get_pool().acquire() as conn:
+            result = await conn.execute(
+                "UPDATE campaign_results SET opened_at = NOW() "
+                "WHERE campaign_id = $1 AND contact_id = $2",
+                uuid.UUID(campaign_id),
+                uuid.UUID(contact_id),
+            )
+        actualizado = result.startswith("UPDATE ") and int(result.split()[1]) > 0
         if actualizado:
-            log.info("Apertura: campaign=%s contact=%s at=%s", campaign_id, contact_id, ahora)
+            log.info("Apertura: campaign=%s contact=%s", campaign_id, contact_id)
         return actualizado
     except Exception as exc:
         log.error("Error registrando apertura: %s", exc)
