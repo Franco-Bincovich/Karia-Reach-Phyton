@@ -1,16 +1,17 @@
 """
-Cliente Playwright para web scraping.
+Cliente httpx para web scraping.
 
-Crawlea sitios web de forma headless, prioriza paginas de contacto
+Crawlea sitios web, prioriza paginas de contacto
 y extrae emails/telefonos/direcciones con regex.
 """
 
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
-from playwright.async_api import async_playwright
+import httpx
+from bs4 import BeautifulSoup
 
 from integrations import claude_client
 from logger import get_logger
@@ -46,7 +47,7 @@ def _score_url(url: str) -> int:
 
 async def crawl_sitio(url: str, max_paginas: int = 60, profundidad: int = 3) -> dict:
     """
-    Crawlea un sitio con Playwright headless bloqueando imagenes, CSS y fuentes.
+    Crawlea un sitio con httpx, prioriza paginas de contacto.
 
     Args:
         url: URL base del sitio a crawlear.
@@ -62,40 +63,27 @@ async def crawl_sitio(url: str, max_paginas: int = 60, profundidad: int = 3) -> 
     base_netloc = urlparse(url).netloc
 
     try:
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
-            ctx = await browser.new_context()
-            await ctx.route(
-                "**/*.{png,jpg,jpeg,gif,svg,ico,css,woff,woff2,ttf,eot}",
-                lambda r: r.abort(),
-            )
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             while cola and len(visitados) < max_paginas:
                 cola.sort(key=lambda x: (_score_url(x[0]), x[1]))
                 current_url, depth = cola.pop(0)
                 if current_url in visitados or _score_url(current_url) == 99:
                     continue
+                if any(current_url.lower().endswith(ext) for ext in _EXT_IGNORAR):
+                    continue
                 visitados.add(current_url)
-                page = None
                 try:
-                    page = await ctx.new_page()
-                    await page.goto(current_url, timeout=15000, wait_until="domcontentloaded")
-                    textos.append(await page.inner_text("body"))
+                    resp = await client.get(current_url)
+                    resp.raise_for_status()
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    textos.append(soup.get_text(separator=" ", strip=True))
                     if depth < profundidad:
-                        links = await page.eval_on_selector_all(
-                            "a[href]", "els => els.map(e => e.href)"
-                        )
-                        for link in links:
+                        for tag in soup.find_all("a", href=True):
+                            link = urljoin(current_url, tag["href"]).split("#")[0]
                             if urlparse(link).netloc == base_netloc and link not in visitados:
                                 cola.append((link, depth + 1))
                 except Exception as exc:
                     log.warning("Error crawleando %s: %s", current_url, exc)
-                finally:
-                    if page:
-                        try:
-                            await page.close()
-                        except Exception:
-                            pass
-            await browser.close()
     except AppError:
         raise
     except Exception as exc:
@@ -159,17 +147,44 @@ async def resolver_url(nombre_o_url: str) -> str:
     if nombre_o_url.strip().startswith("http"):
         return nombre_o_url.strip()
 
-    tools = [{"type": "web_search_20250305", "name": "web_search"}]
+    from config.settings import get_settings
+    import httpx
+
+    settings = get_settings()
+    payload = {
+        "model": settings.ANTHROPIC_MODEL,
+        "max_tokens": 256,
+        "tools": [{"type": "web_search_20250305", "name": "web_search"}],
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Sos un buscador de URLs oficiales. Respondés SOLO con la URL, sin texto adicional. "
+                    f"Encontrá la URL oficial del sitio web de: {nombre_o_url}. "
+                    "Devolvé ÚNICAMENTE la URL, sin texto adicional."
+                ),
+            }
+        ],
+    }
+    headers = {
+        "x-api-key": settings.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
     try:
-        resultado = await claude_client._llamar_claude(
-            "Sos un buscador de URLs oficiales. Respondés SOLO con la URL, sin texto adicional.",
-            f"Encontrá la URL oficial del sitio web de: {nombre_o_url}. "
-            "Devolvé ÚNICAMENTE la URL, sin texto adicional.",
-            tools=tools,
-        )
-        for parte in resultado.strip().split():
-            if parte.startswith("http"):
-                return parte
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers=headers,
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        for bloque in data.get("content", []):
+            if bloque.get("type") == "text":
+                for palabra in bloque.get("text", "").split():
+                    if palabra.startswith("http"):
+                        return palabra
         raise AppError(
             f"No se encontró URL oficial para: {nombre_o_url}",
             "SCRAPING_URL_NOT_FOUND", 400,
