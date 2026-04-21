@@ -1,14 +1,16 @@
 """
 Repositorio de templates — unico punto de acceso a la tabla `templates`.
 
-Campos: id, nombre, asunto, cuerpo, tono, objetivo, created_at, updated_at.
+Campos: id, nombre, asunto, cuerpo, tono, objetivo, usuario_id, created_at, updated_at.
+Usa asyncpg directamente contra el pool de Postgres local.
 """
 
 from __future__ import annotations
 
-import asyncio
+import uuid
+from datetime import datetime
 
-from integrations.supabase_client import get_supabase_client
+from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -16,18 +18,37 @@ log = get_logger(__name__)
 
 _TABLE = "templates"
 
+_COLUMNAS_PERMITIDAS = frozenset({
+    "nombre", "asunto", "cuerpo", "tono", "objetivo",
+    "usuario_id", "created_at", "updated_at",
+})
+
+
+def _record_to_dict(record) -> dict:
+    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
+    row = dict(record)
+    for key, val in row.items():
+        if isinstance(val, uuid.UUID):
+            row[key] = str(val)
+        elif isinstance(val, datetime):
+            row[key] = val.isoformat()
+    return row
+
 
 async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los templates ordenados por fecha de creacion desc."""
     try:
-        loop = asyncio.get_event_loop()
-        def _q():
-            q = get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True)
+        async with get_pool().acquire() as conn:
             if usuario_id:
-                q = q.eq("usuario_id", usuario_id)
-            return q.execute()
-        resp = await loop.run_in_executor(None, _q)
-        return resp.data
+                rows = await conn.fetch(
+                    "SELECT * FROM templates WHERE usuario_id = $1 ORDER BY created_at DESC",
+                    uuid.UUID(usuario_id),
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT * FROM templates ORDER BY created_at DESC"
+                )
+        return [_record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando templates: %s", exc)
         raise AppError("Error al listar templates", "DB_TEMPLATES_LIST", 500) from exc
@@ -36,14 +57,15 @@ async def listar(usuario_id: str = None) -> list[dict]:
 async def contar(usuario_id: str = None) -> int:
     """Devuelve el total de templates."""
     try:
-        loop = asyncio.get_event_loop()
-        def _q():
-            q = get_supabase_client().table(_TABLE).select("id", count="exact")
+        async with get_pool().acquire() as conn:
             if usuario_id:
-                q = q.eq("usuario_id", usuario_id)
-            return q.execute()
-        resp = await loop.run_in_executor(None, _q)
-        return resp.count or 0
+                result = await conn.fetchval(
+                    "SELECT COUNT(*) FROM templates WHERE usuario_id = $1",
+                    uuid.UUID(usuario_id),
+                )
+            else:
+                result = await conn.fetchval("SELECT COUNT(*) FROM templates")
+        return int(result or 0)
     except Exception as exc:
         log.error("Error contando templates: %s", exc)
         raise AppError("Error al contar templates", "DB_TEMPLATES_COUNT", 500) from exc
@@ -54,18 +76,26 @@ async def crear(template: dict) -> dict:
     Inserta un template nuevo.
 
     Args:
-        template: dict con nombre, asunto, cuerpo, tono, objetivo.
+        template: dict con nombre, asunto, cuerpo, tono, objetivo, usuario_id.
 
     Returns:
         Dict del template creado con id y timestamps.
     """
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).insert(template).execute()
-        ))
+        datos = {k: v for k, v in template.items() if k in _COLUMNAS_PERMITIDAS}
+        if "usuario_id" in datos and isinstance(datos["usuario_id"], str):
+            datos["usuario_id"] = uuid.UUID(datos["usuario_id"])
+        cols = list(datos.keys())
+        vals = list(datos.values())
+        placeholders = ", ".join(f"${i + 1}" for i in range(len(cols)))
+        query = (
+            f"INSERT INTO templates ({', '.join(cols)}) "
+            f"VALUES ({placeholders}) RETURNING *"
+        )
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(query, *vals)
         log.info("Template creado: %s", template.get("nombre"))
-        return resp.data[0]
+        return _record_to_dict(row)
     except Exception as exc:
         log.error("Error creando template: %s", exc)
         raise AppError("Error al crear template", "DB_TEMPLATES_CREATE", 500) from exc
@@ -82,11 +112,12 @@ async def eliminar(id: str) -> bool:
         True si se elimino, False si no existia.
     """
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).delete().eq("id", id).execute()
-        ))
-        eliminado = len(resp.data) > 0
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "DELETE FROM templates WHERE id = $1 RETURNING id",
+                uuid.UUID(id),
+            )
+        eliminado = row is not None
         if eliminado:
             log.info("Template eliminado: %s", id)
         return eliminado
