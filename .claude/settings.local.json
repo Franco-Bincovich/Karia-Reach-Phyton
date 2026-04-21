@@ -6,7 +6,8 @@
       "Bash(npx --yes acorn --ecma2020 --module src/pages/BuscarContactos.jsx)",
       "Bash(npx acorn:*)",
       "Bash(npx vite:*)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(git *)"
     ]
   }
 }

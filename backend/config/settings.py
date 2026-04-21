@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     JWT_SECRET: str = ""
     JWT_EXPIRATION_HOURS: int = 8
 
+    # --- PostgreSQL local / AWS RDS ---
+    pg_host: str = "localhost"
+    pg_port: int = 5432
+    pg_user: str = "karia_reach_user"
+    pg_password: str
+    pg_database: str = "karia_reach"
+    pg_pool_min_size: int = 2
+    pg_pool_max_size: int = 10
+
     # --- Apify ---
     APIFY_API_KEY: str = ""
 
