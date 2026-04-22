@@ -35,7 +35,11 @@ export const API_APIFY_SEARCH = '/api/apify/buscar'
 export const API_APIFY_ENRICH = '/api/apify/enriquecer-contacto'
 export const API_ADMIN_USUARIOS = '/api/admin/usuarios'
 export const API_ADMIN_USUARIO = (id) => `/api/admin/usuarios/${id}`
+export const API_ADMIN_USUARIO_METODOS = (id) => `/api/admin/usuarios/${id}/metodos`
 export const API_CAMPANAS_PROGRAMADAS = '/api/campanas-programadas'
 export const API_CAMPANA_PROGRAMADA_CANCEL = (id) => `/api/campanas-programadas/${id}`
 export const API_SCRAPING_BUSCAR = '/api/scraping/buscar'
 export const API_SCRAPING_PREFERENCIAS = '/api/scraping/preferencias'
+export const API_GMAIL_STATUS = '/api/gmail/status'
+export const API_GMAIL_AUTHORIZE = '/api/gmail/oauth/authorize'
+export const API_GMAIL_DISCONNECT = '/api/gmail/disconnect'

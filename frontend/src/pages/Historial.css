@@ -2,7 +2,7 @@
 
 .historial-table-wrap {
   overflow-x: auto;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
 }
 .historial-table {
@@ -13,18 +13,21 @@
 }
 .historial-table th {
   background: var(--navy);
-  color: var(--white);
-  padding: 12px 14px;
+  color: rgba(255,255,255,0.88);
+  padding: 11px 14px;
   text-align: left;
   font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
-.historial-table th:first-child { border-radius: var(--radius) 0 0 0; }
-.historial-table th:last-child { border-radius: 0 var(--radius) 0 0; }
+.historial-table th:first-child { border-radius: var(--radius-lg) 0 0 0; }
+.historial-table th:last-child { border-radius: 0 var(--radius-lg) 0 0; }
 
 .historial-table td {
   padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #F1F5F9;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -41,29 +44,30 @@
   color: var(--text-secondary);
   padding: 4px;
   user-select: none;
+  transition: color var(--transition);
 }
 .expand-icon:hover { color: var(--primary); }
 
 .origen-badge {
   display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.73rem;
   font-weight: 600;
 }
 
 .delete-btn {
   background: none; border: none; cursor: pointer;
-  font-size: 16px; padding: 4px; border-radius: var(--radius);
-  opacity: 0.4; transition: opacity var(--transition);
+  font-size: 15px; padding: 5px; border-radius: var(--radius);
+  opacity: 0.35; transition: all var(--transition);
 }
-.delete-btn:hover { opacity: 1; }
+.delete-btn:hover { opacity: 1; background: #FEF2F2; }
 
 .detail-row td { padding: 0 !important; border-bottom: 1px solid var(--border); }
 .detail-panel {
   background: var(--detail-bg);
   padding: 14px 20px 14px 50px;
-  animation: expandIn 0.2s ease;
+  animation: expandIn 0.18s ease;
 }
 .detail-grid {
   display: grid;
@@ -72,15 +76,17 @@
 }
 .detail-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.73rem;
   color: var(--text-secondary);
   font-weight: 600;
   margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 @keyframes expandIn {
-  from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 200px; }
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 .empty-row { text-align: center; padding: var(--space-2xl); color: var(--text-secondary); }

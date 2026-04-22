@@ -5,8 +5,8 @@
 export default function ConfidenceBadge({ value }) {
   if (value == null) return <span style={{ color: 'var(--gray)' }}>-</span>
   const pct = value > 1 ? Math.round(value) : Math.round(value * 100)
-  const color = pct >= 80 ? '#22C55E' : pct >= 60 ? '#EAB308' : '#EF4444'
-  const bg = pct >= 80 ? '#F0FDF4' : pct >= 60 ? '#FEFCE8' : '#FEF2F2'
+  const color = pct >= 90 ? '#16A34A' : pct >= 50 ? '#D97706' : '#DC2626'
+  const bg = pct >= 90 ? '#F0FDF4' : pct >= 50 ? '#FFFBEB' : '#FEF2F2'
   return (
     <span style={{ background: bg, color, padding: '2px 10px', borderRadius: 12, fontSize: '0.8rem', fontWeight: 600 }}>
       {pct}%

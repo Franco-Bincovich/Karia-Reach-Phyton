@@ -10,20 +10,28 @@
 }
 .table th {
   text-align: left;
-  padding: var(--space-md);
-  background: var(--bg-light);
+  padding: 11px var(--space-md);
+  background: var(--navy);
+  color: rgba(255,255,255,0.9);
   font-weight: 600;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: none;
   white-space: nowrap;
 }
+.table th:first-child { border-radius: var(--radius-lg) 0 0 0; }
+.table th:last-child { border-radius: 0 var(--radius-lg) 0 0; }
+
 .table td {
   padding: var(--space-md);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #F1F5F9;
   vertical-align: middle;
+  color: var(--text-dark);
 }
+.table tbody tr:nth-child(even) { background: var(--row-alt); }
 .table tbody tr:last-child td { border-bottom: none; }
-.table tbody tr:hover { background: var(--bg-light); }
+.table tbody tr:hover { background: var(--row-hover); transition: background var(--transition); }
 .table tbody tr.clickable { cursor: pointer; }
 
 .table-empty {

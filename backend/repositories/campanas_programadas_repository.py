@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, time as time_type
 
 from integrations.postgres_client import get_pool
 from logger import get_logger
@@ -20,7 +20,7 @@ _TABLE = "campanas_programadas"
 
 _COLUMNAS_PROG = frozenset({
     "nombre", "usuario_id", "template_id", "bloque_id", "estado",
-    "contact_ids", "dias_semana", "hora_envio", "fecha_envio", "ultima_ejecucion",
+    "tipo", "contact_ids", "dias_semana", "hora_envio", "fecha_envio", "ultima_ejecucion",
 })
 _COLUMNAS_JSONB = frozenset({"contact_ids", "dias_semana"})
 _COLUMNAS_UUID = frozenset({"template_id", "bloque_id", "usuario_id"})
@@ -70,6 +70,9 @@ async def crear(usuario_id: str, datos: dict) -> dict:
             elif col in _COLUMNAS_JSONB and not isinstance(val, str):
                 val = json.dumps(val)
             val = _coerce_timestamp(col, val)
+            if col == "hora_envio" and isinstance(val, str):
+                h, m = val.split(":")
+                val = time_type(int(h), int(m))
             vals.append(val)
         query = (
             f"INSERT INTO {_TABLE} ({', '.join(cols)}) "

@@ -9,6 +9,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import bcrypt
+
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
@@ -25,6 +27,35 @@ def _record_to_dict(record) -> dict:
         elif isinstance(val, datetime):
             row[key] = val.isoformat()
     return row
+
+
+async def crear_usuario(email: str, password: str, nombre: str, rol: str) -> dict:
+    """Crea un usuario nuevo. Valida unicidad de email, hashea password con bcrypt."""
+    if rol not in ("user", "superadmin"):
+        raise AppError("Rol inválido", "INVALID_ROLE", 400)
+    try:
+        async with get_pool().acquire() as conn:
+            existente = await conn.fetchrow(
+                "SELECT id FROM usuarios_reach WHERE email = $1 LIMIT 1", email
+            )
+            if existente:
+                raise AppError("El email ya está registrado", "EMAIL_ALREADY_EXISTS", 409)
+            password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            row = await conn.fetchrow(
+                """
+                INSERT INTO usuarios_reach (email, password_hash, nombre, rol, activo)
+                VALUES ($1, $2, $3, $4, true)
+                RETURNING id, email, nombre, rol, activo, created_at, updated_at
+                """,
+                email, password_hash, nombre, rol,
+            )
+        log.info("Admin: usuario creado — %s (%s)", email, rol)
+        return _record_to_dict(row)
+    except AppError:
+        raise
+    except Exception as exc:
+        log.error("Error creando usuario: %s", exc)
+        raise AppError("Error al crear usuario", "DB_ADMIN_USER_CREATE", 500) from exc
 
 
 async def listar_usuarios() -> list[dict]:
@@ -113,13 +144,40 @@ async def obtener_usuario(id: str) -> dict:
         raise AppError("Error al obtener usuario", "DB_ADMIN_USER_GET", 500) from exc
 
 
+_METODOS_VALIDOS = frozenset(["claude_ai", "apollo", "perplexity", "apify", "scraping_web", "carga_manual"])
+_TODOS_METODOS = list(_METODOS_VALIDOS)
+
+
+async def obtener_metodos(id: str) -> dict:
+    """Retorna los metodos_habilitados de un usuario."""
+    try:
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT metodos_habilitados FROM usuarios_reach WHERE id = $1 LIMIT 1",
+                uuid.UUID(id),
+            )
+        if not row:
+            raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
+        metodos = list(row["metodos_habilitados"] or _TODOS_METODOS)
+        return {"metodos_habilitados": metodos}
+    except AppError:
+        raise
+    except Exception as exc:
+        log.error("Error obteniendo metodos usuario %s: %s", id, exc)
+        raise AppError("Error al obtener métodos", "DB_ADMIN_METODOS_GET", 500) from exc
+
+
 async def editar_usuario(id: str, datos: dict) -> dict:
-    """Edita nombre, email o rol de un usuario."""
-    campos = {k: v for k, v in datos.items() if k in ("nombre", "email", "rol") and v}
+    """Edita nombre, email, rol y/o metodos_habilitados de un usuario."""
+    campos = {k: v for k, v in datos.items() if k in ("nombre", "email", "rol", "metodos_habilitados") and v is not None}
     if not campos:
         raise AppError("No hay campos para actualizar", "NO_UPDATE_FIELDS", 400)
     if "rol" in campos and campos["rol"] not in ("user", "superadmin"):
         raise AppError("Rol inválido", "INVALID_ROLE", 400)
+    if "metodos_habilitados" in campos:
+        metodos = campos["metodos_habilitados"]
+        if not isinstance(metodos, list) or not all(m in _METODOS_VALIDOS for m in metodos):
+            raise AppError("metodos_habilitados contiene valores inválidos", "INVALID_METODOS", 400)
     try:
         set_clauses, vals = [], []
         for i, (col, val) in enumerate(campos.items(), 1):

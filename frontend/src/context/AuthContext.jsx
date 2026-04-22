@@ -30,8 +30,11 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  const TODOS_METODOS = ['claude_ai', 'apollo', 'perplexity', 'apify', 'scraping_web', 'carga_manual']
+  const metodos = (user?.metodos_habilitados?.length ? user.metodos_habilitados : TODOS_METODOS)
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated: authenticated, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated: authenticated, user, login, logout, metodos }}>
       {children}
     </AuthContext.Provider>
   )

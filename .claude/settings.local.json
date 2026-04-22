@@ -7,7 +7,16 @@
       "Bash(npx acorn:*)",
       "Bash(npx vite:*)",
       "Bash(pip install *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(PGPASSWORD='paltron261103' psql *)",
+      "Bash(where psql *)",
+      "Read(//c/Program Files/PostgreSQL//**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(PGPASSWORD='paltron261103' /c/Program Files/PostgreSQL/16/bin/psql *)",
+      "Bash(PGPASSWORD='paltron261103' \"/c/Program Files/PostgreSQL/16/bin/psql\" -h localhost -p 5432 -U karia_reach_user -d karia_reach -c \"\\\\du\")",
+      "Bash(PGPASSWORD=paltron261103 psql *)",
+      "Bash(python -c ' *)",
+      "Bash(venv/Scripts/python -c ' *)"
     ]
   }
 }

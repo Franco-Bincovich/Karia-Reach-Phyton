@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 import {
   API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL,
   API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS,
@@ -24,6 +25,7 @@ const TAMANO_OPCIONES = [
 
 export default function BuscarContactos() {
   const toast = useToast()
+  const { metodos } = useAuth()
   const [form, setForm] = useState({ rubro: '', ubicacion: '', cantidad: 10, prompt_personalizado: '' })
   const [apolloForm, setApolloForm] = useState({ cargo: '', tamano_empresa: '', solo_email_verificado: false })
   const [scrapingForm, setScrapingForm] = useState({ entradas: '' })
@@ -271,14 +273,14 @@ export default function BuscarContactos() {
         )}
 
         <div className="flex gap-sm">
-          <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>
-          <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>
-          <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>
-          <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>
-          <Button variant={metodo === 'scraping' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('scraping')}>Scraping Web</Button>
+          {metodos.includes('claude_ai') && <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>}
+          {metodos.includes('apollo') && <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>}
+          {metodos.includes('perplexity') && <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>}
+          {metodos.includes('apify') && <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>}
+          {metodos.includes('scraping_web') && <Button variant={metodo === 'scraping' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('scraping')}>Scraping Web</Button>}
           <div style={{ flex: 1 }} />
           <Button onClick={buscar}>Buscar</Button>
-          <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>
+          {metodos.includes('carga_manual') && <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>}
         </div>
         {metodo === 'apollo' && apolloOk === false && (
           <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Apollo en Configuración</p>

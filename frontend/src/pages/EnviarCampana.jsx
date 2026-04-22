@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_COMPOSE_TEMPLATES, API_CONTACTS, API_SEND_CAMPAIGN, API_BLOQUES, API_BLOQUE_CONTACTOS, API_CAMPANAS_PROGRAMADAS } from '../constants/api'
+import { API_COMPOSE_TEMPLATES, API_CONTACTS, API_SEND_CAMPAIGN, API_BLOQUES, API_BLOQUE_CONTACTOS, API_CAMPANAS_PROGRAMADAS, API_GMAIL_STATUS } from '../constants/api'
 import Button from '../components/UI/Button'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ContactSelector from '../components/ContactSelector'
@@ -20,6 +20,7 @@ export default function EnviarCampana() {
   const [resultado, setResultado] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [loadingBloque, setLoadingBloque] = useState(false)
+  const [gmailConectado, setGmailConectado] = useState(null) // null=cargando, true/false
   // Scheduling
   const [modoEnvio, setModoEnvio] = useState('ahora')      // 'ahora' | 'programar'
   const [tipoSchedule, setTipoSchedule] = useState('unica') // 'unica' | 'recurrente'
@@ -28,6 +29,8 @@ export default function EnviarCampana() {
   const [diasSemana, setDiasSemana] = useState([])
 
   useEffect(() => {
+    // Todos los requests en paralelo para no agregar latencia
+    api.get(API_GMAIL_STATUS).then(({ data }) => setGmailConectado(!!data.data?.conectado)).catch(() => setGmailConectado(true))
     api.get(API_COMPOSE_TEMPLATES).then(({ data }) => setTemplates(data.data || [])).catch((err) => toast.error(err.message))
     api.get(API_CONTACTS).then(({ data }) => setContactos((data.data || []).map((c) => ({ ...c, _selected: false })))).catch((err) => toast.error(err.message))
     api.get(API_BLOQUES).then(({ data }) => setBloques(data.data || [])).catch((err) => toast.error(err.message))
@@ -88,6 +91,17 @@ export default function EnviarCampana() {
 
   return (
     <div>
+      {gmailConectado === false && (
+        <div className="card mb-md flex-between" style={{ background: '#FEF3C7', border: '1px solid var(--warning)', boxShadow: 'none' }}>
+          <span className="text-sm" style={{ color: '#92400E' }}>
+            ⚠️ Conectá tu Gmail antes de enviar campañas.
+          </span>
+          <a href="/configuracion" style={{ fontSize: 'var(--font-sm)', color: '#92400E', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            → Ir a Configuración
+          </a>
+        </div>
+      )}
+
       <div className="card mb-md">
         <div className="form-group">
           <label htmlFor="camp-nombre">Nombre de la campana</label>

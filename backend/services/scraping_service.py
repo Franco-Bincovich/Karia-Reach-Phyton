@@ -8,6 +8,7 @@ en contactos con formato estandar.
 from __future__ import annotations
 
 import json
+import unicodedata
 from urllib.parse import urlparse
 
 from integrations import scraping_client
@@ -23,6 +24,8 @@ _DOMINIOS_BLOQUEADOS = {
     "facebook.com", "instagram.com", "twitter.com", "x.com",
     "tiktok.com", "linkedin.com", "youtube.com", "wikipedia.org",
 }
+_KW_ALTA = frozenset({"hacienda","rentas","secretaria","mesadeentrada","cobranzas","tesoreria","contaduria","administracion","finanzas","tributaria","recaudacion","licitaciones","compras","proveedores"})
+
 _PREFS_DEFAULT: dict = {
     "extraer_emails": True,
     "extraer_telefonos": True,
@@ -57,6 +60,12 @@ async def guardar_preferencias(usuario_id: str, preferencias: dict) -> None:
     """
     merged = {**_PREFS_DEFAULT, **preferencias}
     await integrations_repository.guardar_api_key(_SERVICIO, json.dumps(merged), usuario_id)
+
+
+def _calcular_confianza(email: str) -> float:
+    """0.9 si el local-part contiene palabra clave institucional; 0.5 si no."""
+    local = "".join(c for c in unicodedata.normalize("NFD", email.split("@")[0].lower()) if unicodedata.category(c) != "Mn")
+    return 0.9 if any(kw in local for kw in _KW_ALTA) else 0.5
 
 
 def _es_url_valida(url: str) -> bool:
@@ -124,7 +133,7 @@ async def buscar_por_scraping(
                     "email_empresarial": email,
                     "telefono_empresa": tel_principal,
                     "origen": "scraping",
-                    "confianza": 0.5,
+                    "confianza": _calcular_confianza(email),
                 })
             log.info(
                 "Scraping %s: %d emails, %d tel, %d pags",

@@ -91,7 +91,8 @@ async def ejecutar(campana_id: str) -> None:
         log.info("Ejecutando campana programada '%s' (%s)", campana["nombre"], campana_id)
 
         await send_service.enviar_campana(
-            campana["nombre"], campana["template_id"], contact_ids, None
+            campana["nombre"], campana["template_id"], contact_ids, None,
+            usuario_id=campana.get("usuario_id"), rol="user",
         )
         ahora = datetime.now(timezone.utc).isoformat()
         # Recurrente vuelve a 'programada'; unica pasa a 'ejecutada'

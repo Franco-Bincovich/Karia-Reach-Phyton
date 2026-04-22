@@ -8,7 +8,11 @@ error handling y registra los routers.
 import signal
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import AsyncGenerator
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +30,60 @@ from routes import admin, apollo, apify, auth, bloques, campanas_programadas, co
 
 log = get_logger(__name__)
 settings = get_settings()
+
+
+# --- Scheduler de campañas programadas ---
+
+_scheduler: AsyncIOScheduler | None = None
+
+
+async def ejecutar_campanas_programadas() -> None:
+    """
+    Job del scheduler (cada 1 minuto): dispara campañas con vencimiento alcanzado.
+
+    - Tipo 'unica': ejecuta si fecha_envio <= ahora.
+    - Tipo 'recurrente': ejecuta si hoy es uno de los dias_semana programados,
+      ya pasó la hora_envio y no se ejecutó todavía hoy.
+    """
+    from repositories import campanas_programadas_repository as cp_repo
+    from services import campanas_programadas_service as cp_svc
+
+    try:
+        campanas = await cp_repo.listar_programadas()
+        if not campanas:
+            return
+        ahora = datetime.now(timezone.utc)
+        hoy = ahora.date()
+        hora_hoy = ahora.strftime("%H:%M")
+        dia = ahora.weekday()  # 0=Lun … 6=Dom, igual que el frontend
+
+        for c in campanas:
+            cid = c["id"]
+            try:
+                fe_str = c.get("fecha_envio")
+                ue_str = c.get("ultima_ejecucion")
+
+                if c["tipo"] == "unica":
+                    if not fe_str:
+                        continue
+                    fe = datetime.fromisoformat(fe_str)
+                    fe = fe if fe.tzinfo else fe.replace(tzinfo=timezone.utc)
+                    debe = fe <= ahora
+                else:  # recurrente
+                    ya_hoy = ue_str and datetime.fromisoformat(ue_str).date() >= hoy
+                    debe = (
+                        dia in (c.get("dias_semana") or [])
+                        and hora_hoy >= c.get("hora_envio", "25:00")
+                        and not ya_hoy
+                    )
+
+                if debe:
+                    log.info("Scheduler: ejecutando campana '%s' (%s)", c.get("nombre"), cid)
+                    await cp_svc.ejecutar(cid)
+            except Exception as exc:
+                log.error("Scheduler: error en campana %s: %s", cid, exc)
+    except Exception as exc:
+        log.error("Scheduler: error en job ejecutar_campanas_programadas: %s", exc)
 
 
 # --- Security Headers (equivalente a helmet en Express) ---
@@ -53,11 +111,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Maneja startup y shutdown de la aplicacion."""
+    global _scheduler
     _log_startup_status()
 
-    # Graceful shutdown ante SIGTERM (Docker stop)
     def handle_sigterm(signum: int, frame: object) -> None:  # noqa: ARG001
-        """Captura SIGTERM para cerrar limpiamente."""
         log.info("SIGTERM recibido — cerrando...")
         sys.exit(0)
 
@@ -68,8 +125,22 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         log.error("No se pudo inicializar el pool de Postgres: %s", exc)
 
+    _scheduler = AsyncIOScheduler()
+    _scheduler.add_job(
+        ejecutar_campanas_programadas,
+        IntervalTrigger(minutes=1),
+        id="campanas_programadas",
+        replace_existing=True,
+    )
+    _scheduler.start()
+    log.info("Scheduler iniciado — job 'campanas_programadas' cada 1 minuto")
+
     log.info("Karia Reach Backend listo en puerto %s", settings.PORT)
     yield
+
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown()
+        log.info("Scheduler detenido")
     await close_pool()
     log.info("Karia Reach Backend cerrado")
 

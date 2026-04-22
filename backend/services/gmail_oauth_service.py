@@ -28,6 +28,8 @@ log = get_logger(__name__)
 settings = get_settings()
 
 _SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.readonly",
 ]

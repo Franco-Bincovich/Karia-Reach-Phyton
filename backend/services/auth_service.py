@@ -66,5 +66,6 @@ async def login(email: str, password: str) -> dict:
             "nombre": usuario.get("nombre", ""),
             "email": usuario["email"],
             "rol": usuario.get("rol", "user"),
+            "metodos_habilitados": usuario.get("metodos_habilitados", []),
         },
     }

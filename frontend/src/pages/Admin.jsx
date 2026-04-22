@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import api from '../hooks/useApi'
 import { useToast } from '../context/ToastContext'
-import { API_ADMIN_USUARIOS, API_ADMIN_USUARIO } from '../constants/api'
+import { API_ADMIN_USUARIOS, API_ADMIN_USUARIO, API_ADMIN_USUARIO_METODOS } from '../constants/api'
 import Button from '../components/UI/Button'
 import Modal from '../components/UI/Modal'
 import ConfirmModal from '../components/UI/ConfirmModal'
 import LoadingSpinner from '../components/UI/LoadingSpinner'
+import EditarUsuarioModal from '../components/UI/EditarUsuarioModal'
 
 export default function Admin() {
   const toast = useToast()
@@ -13,8 +14,21 @@ export default function Admin() {
   const [loading, setLoading] = useState(true)
   const [detalle, setDetalle] = useState(null)
   const [editando, setEditando] = useState(null)
-  const [editForm, setEditForm] = useState({ nombre: '', email: '', rol: '' })
+  const [editForm, setEditForm] = useState({ nombre: '', email: '', rol: '', metodos_habilitados: [] })
   const [deleteId, setDeleteId] = useState(null)
+  const [nuevo, setNuevo] = useState(null)
+  const crearUsuario = async () => {
+    const payload = { ...nuevo }
+    setNuevo(null)
+    try {
+      await api.post(API_ADMIN_USUARIOS, payload)
+      toast.success('Usuario creado')
+      cargar()
+    } catch (e) {
+      setNuevo(payload)
+      e.response?.status===409 ? toast.error('El email ya está registrado') : toast.error(e.message)
+    }
+  }
 
   const cargar = () => api.get(API_ADMIN_USUARIOS)
     .then(({ data }) => setUsuarios(data.data || []))
@@ -29,7 +43,10 @@ export default function Admin() {
     } catch (err) { toast.error(err.message) }
   }
 
-  const abrirEditar = (u) => { setEditando(u.id); setEditForm({ nombre: u.nombre || '', email: u.email || '', rol: u.rol || 'user' }) }
+  const abrirEditar = async (u) => {
+    setEditando(u.id); setEditForm({ nombre: u.nombre || '', email: u.email || '', rol: u.rol || 'user', metodos_habilitados: [] })
+    try { const { data } = await api.get(API_ADMIN_USUARIO_METODOS(u.id)); setEditForm(f => ({ ...f, metodos_habilitados: data.data?.metodos_habilitados || [] })) } catch (_) { /* usa defaults */ }
+  }
   const guardarEdicion = async () => {
     try { await api.patch(API_ADMIN_USUARIO(editando), editForm); toast.success('Usuario actualizado'); setEditando(null); cargar() }
     catch (err) { toast.error(err.message) }
@@ -45,7 +62,7 @@ export default function Admin() {
   return (
     <div>
       <div className="card">
-        <h3 className="mb-md">Usuarios ({usuarios.length})</h3>
+        <div className="flex-between mb-md"><h3>Usuarios ({usuarios.length})</h3><Button size="sm" onClick={()=>setNuevo({nombre:'',email:'',password:'',rol:'user'})}>Nuevo usuario</Button></div>
         <div style={{ overflowX: 'auto' }}>
           <table className="historial-table">
             <thead>
@@ -116,29 +133,15 @@ export default function Admin() {
         </Modal>
       )}
 
-      {editando && (
-        <Modal title="Editar usuario" onClose={() => setEditando(null)}>
-          {['nombre', 'email'].map((f) => (
-            <div className="form-group" key={f}>
-              <label>{f}</label>
-              <input value={editForm[f]} onChange={(e) => setEditForm({ ...editForm, [f]: e.target.value })} />
-            </div>
-          ))}
-          <div className="form-group">
-            <label>Rol</label>
-            <select value={editForm.rol} onChange={(e) => setEditForm({ ...editForm, rol: e.target.value })}>
-              <option value="user">user</option>
-              <option value="superadmin">superadmin</option>
-            </select>
-          </div>
-          <Button onClick={guardarEdicion}>Guardar</Button>
-        </Modal>
-      )}
+      {editando && <EditarUsuarioModal form={editForm} onChange={setEditForm} onClose={() => setEditando(null)} onGuardar={guardarEdicion} />}
 
       {deleteId && (
         <ConfirmModal message="Se eliminará el usuario y TODOS sus datos (contactos, campañas, emails). Esta acción es irreversible."
           onConfirm={eliminar} onCancel={() => setDeleteId(null)} />
       )}
+      {nuevo && <Modal title="Nuevo usuario" onClose={()=>setNuevo(null)}>
+        {[['nombre','Nombre'],['email','Email'],['password','Contraseña']].map(([f,l])=><div className="form-group" key={f}><label>{l}</label><input type={f==='password'?'password':'text'} value={nuevo[f]} onChange={e=>setNuevo({...nuevo,[f]:e.target.value})}/></div>)}
+        <div className="form-group"><label>Rol</label><select value={nuevo.rol} onChange={e=>setNuevo({...nuevo,rol:e.target.value})}><option value="user">Usuario</option><option value="superadmin">Superadmin</option></select></div><Button onClick={crearUsuario}>Crear</Button></Modal>}
     </div>
   )
 }

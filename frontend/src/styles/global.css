@@ -1,37 +1,31 @@
 @import './variables.css';
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: var(--font-family);
   font-size: var(--font-base);
   color: var(--text-primary);
   background: var(--bg-light);
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-input, select, textarea, button {
-  font-family: inherit;
-  font-size: inherit;
-}
+input, select, textarea, button { font-family: inherit; font-size: inherit; }
 
 input, select, textarea {
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   background: var(--white);
   color: var(--text-primary);
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
   width: 100%;
 }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
 }
 
 label {
@@ -43,10 +37,7 @@ label {
 }
 
 /* Layout principal */
-.app-layout {
-  display: flex;
-  min-height: 100vh;
-}
+.app-layout { display: flex; min-height: 100vh; }
 .app-content {
   flex: 1;
   margin-left: var(--sidebar-width);
@@ -54,20 +45,12 @@ label {
   flex-direction: column;
   transition: margin-left 0.2s ease;
 }
-.sidebar-is-collapsed .app-content {
-  margin-left: 60px;
-}
-.page {
-  padding: var(--space-xl);
-  flex: 1;
-}
+.sidebar-is-collapsed .app-content { margin-left: 60px; }
+.page { padding: var(--space-xl); flex: 1; }
 
 /* Utilidades */
 .form-group { margin-bottom: var(--space-md); }
-.form-row {
-  display: flex;
-  gap: var(--space-md);
-}
+.form-row { display: flex; gap: var(--space-md); }
 .form-row > * { flex: 1; }
 
 .card {
@@ -90,4 +73,5 @@ label {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--gray); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray); }

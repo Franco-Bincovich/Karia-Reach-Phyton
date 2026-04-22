@@ -5,6 +5,7 @@ import { API_APOLLO_STATUS, API_APOLLO_CONFIG, API_PERPLEXITY_STATUS, API_PERPLE
 import Button from '../components/UI/Button'
 import Badge from '../components/UI/Badge'
 import ConfirmModal from '../components/UI/ConfirmModal'
+import GmailConfig from '../components/UI/GmailConfig'
 
 export default function Configuracion() {
   const toast = useToast()
@@ -19,6 +20,20 @@ export default function Configuracion() {
   const [showConfirm, setShowConfirm] = useState(null)
   const [scrapingPrefs, setScrapingPrefs] = useState({ extraer_emails: true, extraer_telefonos: true, extraer_autoridades: true, extraer_direcciones: false, max_paginas: 60, profundidad: 3, guardar_directo: false })
   const [loadingPrefs, setLoadingPrefs] = useState(false)
+
+  // Manejar retorno del callback OAuth de Gmail
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const gmail = params.get('gmail')
+    if (gmail === 'connected') {
+      toast.success('Gmail conectado correctamente')
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (gmail === 'error') {
+      const reason = params.get('reason')
+      toast.error(reason ? `Error al conectar Gmail: ${reason}` : 'Error al conectar Gmail')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   useEffect(() => {
     checkStatus()
@@ -65,6 +80,8 @@ export default function Configuracion() {
 
   return (
     <div>
+      <GmailConfig />
+
       <div className="card mb-md" style={{ maxWidth: 600 }}>
         <div className="flex-between mb-md">
           <h3>Apollo.io</h3>
@@ -129,37 +146,32 @@ export default function Configuracion() {
       </div>
 
       <div className="card mb-md" style={{ maxWidth: 600 }}>
-        <h3 className="mb-md">Preferencias de scraping</h3>
-        <p className="text-sm text-secondary mb-md">
-          Configurá qué datos extraer al usar el método Scraping Web en Buscar Contactos.
-        </p>
-        {[
-          { key: 'extraer_emails', label: 'Extraer emails' },
-          { key: 'extraer_telefonos', label: 'Extraer teléfonos' },
-          { key: 'extraer_autoridades', label: 'Extraer nombres de autoridades' },
-          { key: 'extraer_direcciones', label: 'Extraer direcciones' },
-          { key: 'guardar_directo', label: 'Guardar contactos directo sin mostrar' },
-        ].map(({ key, label }) => (
-          <div className="form-group" key={key}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" checked={!!scrapingPrefs[key]}
-                onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, [key]: e.target.checked })} />
+        <h3 className="mb-md">Preferencias de Scraping</h3>
+        <p className="text-sm text-secondary mb-md">Configurá qué datos extraer al scrapear sitios web.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+          {[
+            { key: 'extraer_emails', label: 'Extraer emails' },
+            { key: 'extraer_telefonos', label: 'Extraer teléfonos' },
+            { key: 'extraer_autoridades', label: 'Extraer autoridades' },
+            { key: 'extraer_direcciones', label: 'Extraer direcciones' },
+            { key: 'guardar_directo', label: 'Guardar directo' },
+          ].map(({ key, label }) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 'var(--font-sm)' }}>
+              <input type="checkbox" checked={!!scrapingPrefs[key]} onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, [key]: e.target.checked })} />
               {label}
             </label>
+          ))}
+        </div>
+        <div className="flex gap-md mb-md" style={{ alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label htmlFor="scraping-max-paginas" style={{ fontSize: 'var(--font-sm)' }}>Páginas máximas</label>
+            <input id="scraping-max-paginas" type="number" min={10} max={100} style={{ width: 80 }}
+              value={scrapingPrefs.max_paginas} onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, max_paginas: Math.min(100, Math.max(10, +e.target.value || 60)) })} />
           </div>
-        ))}
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="scraping-max-paginas">Páginas máximas (10-100)</label>
-            <input id="scraping-max-paginas" type="number" min={10} max={100}
-              value={scrapingPrefs.max_paginas}
-              onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, max_paginas: Math.min(100, Math.max(10, +e.target.value || 60)) })} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="scraping-profundidad">Profundidad de crawl (1-5)</label>
-            <input id="scraping-profundidad" type="number" min={1} max={5}
-              value={scrapingPrefs.profundidad}
-              onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, profundidad: Math.min(5, Math.max(1, +e.target.value || 3)) })} />
+          <div className="form-group" style={{ margin: 0 }}>
+            <label htmlFor="scraping-profundidad" style={{ fontSize: 'var(--font-sm)' }}>Profundidad de crawl</label>
+            <input id="scraping-profundidad" type="number" min={1} max={5} style={{ width: 80 }}
+              value={scrapingPrefs.profundidad} onChange={(e) => setScrapingPrefs({ ...scrapingPrefs, profundidad: Math.min(5, Math.max(1, +e.target.value || 3)) })} />
           </div>
         </div>
         <Button loading={loadingPrefs} onClick={guardarScrapingPrefs}>Guardar preferencias</Button>

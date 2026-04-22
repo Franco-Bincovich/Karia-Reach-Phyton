@@ -8,27 +8,52 @@
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.btn-sm { padding: 6px 12px; font-size: var(--font-sm); }
-.btn-md { padding: 10px 20px; font-size: var(--font-base); }
-.btn-lg { padding: 12px 28px; font-size: var(--font-lg); }
+.btn-sm { padding: 6px 14px; font-size: var(--font-sm); }
+.btn-md { padding: 10px 22px; font-size: var(--font-base); }
+.btn-lg { padding: 13px 30px; font-size: var(--font-lg); }
 
-.btn-primary { background: var(--primary); color: var(--white); }
-.btn-primary:hover:not(:disabled) { background: #1E90C0; }
+.btn-primary {
+  background: var(--primary);
+  color: var(--white);
+  box-shadow: 0 2px 8px rgba(59,130,246,0.2);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+  box-shadow: 0 4px 16px rgba(59,130,246,0.35);
+  transform: translateY(-1px);
+}
 
 .btn-teal { background: var(--teal); color: var(--white); }
-.btn-teal:hover:not(:disabled) { background: #35B8B1; }
+.btn-teal:hover:not(:disabled) { background: #35B8B1; box-shadow: 0 4px 12px rgba(67,209,201,0.3); }
 
-.btn-danger { background: var(--error); color: var(--white); }
-.btn-danger:hover:not(:disabled) { background: #DC2626; }
+.btn-danger {
+  background: #FEE2E2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #DC2626;
+  color: var(--white);
+  border-color: #DC2626;
+  box-shadow: 0 4px 12px rgba(220,38,38,0.25);
+}
 
-.btn-ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border); }
-.btn-ghost:hover:not(:disabled) { background: var(--bg-light); }
+.btn-ghost {
+  background: var(--white);
+  color: var(--text-primary);
+  border: 1.5px solid var(--border);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-light);
+  border-color: #D1D5DB;
+}
 
 .btn-spinner {
-  width: 16px; height: 16px;
+  width: 15px; height: 15px;
   border: 2px solid rgba(255,255,255,0.3);
   border-top-color: white;
   border-radius: 50%;

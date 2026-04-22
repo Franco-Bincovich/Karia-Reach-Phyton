@@ -1,28 +1,29 @@
 :root {
-  /* Colores de marca KarIA */
-  --primary: #29ABE2;
+  /* Paleta principal */
+  --primary: #3B82F6;
+  --primary-dark: #2563EB;
+  --navy: #1E3A5F;
   --teal: #43D1C9;
-  --navy: #081C54;
-  --gray: #BABABA;
+  --gray: #9CA3AF;
   --white: #FFFFFF;
-  --bg-light: #F5F7FA;
+  --bg-light: #F4F6FA;
   --bg-card: #FFFFFF;
-  --text-primary: #081C54;
+  --text-primary: #1E3A5F;
   --text-secondary: #6B7280;
   --border: #E5E7EB;
   --success: #10B981;
   --error: #EF4444;
   --warning: #F59E0B;
 
-  /* Tabla ejecutiva */
+  /* Tabla */
   --text-dark: #374151;
-  --row-alt: #F9FAFB;
-  --row-hover: #F0FFFE;
-  --row-selected: #E0F2FE;
-  --detail-bg: #F0F9FF;
+  --row-alt: #F8FAFC;
+  --row-hover: #F0F4FF;
+  --row-selected: #DBEAFE;
+  --detail-bg: #F0F6FF;
 
-  /* Tipografia */
-  --font-family: 'Baloo 2', cursive, sans-serif;
+  /* Tipografía */
+  --font-family: 'Plus Jakarta Sans', sans-serif;
   --font-sm: 0.875rem;
   --font-base: 1rem;
   --font-lg: 1.125rem;
@@ -42,8 +43,8 @@
   --sidebar-width: 260px;
   --header-height: 64px;
   --radius: 8px;
-  --radius-lg: 12px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.1);
-  --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+  --radius-lg: 16px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.14);
   --transition: 0.2s ease;
 }

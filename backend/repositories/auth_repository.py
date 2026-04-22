@@ -18,11 +18,13 @@ log = get_logger(__name__)
 _TABLE = "usuarios_reach"
 
 _QUERY = """
-    SELECT id, nombre, email, password_hash, rol, activo, created_at, updated_at
+    SELECT id, nombre, email, password_hash, rol, activo, created_at, updated_at, metodos_habilitados
     FROM usuarios_reach
     WHERE email = $1 AND activo = true
     LIMIT 1
 """
+
+_TODOS_METODOS = ['claude_ai', 'apollo', 'perplexity', 'apify', 'scraping_web', 'carga_manual']
 
 
 async def buscar_usuario_por_email(email: str) -> Optional[dict]:
@@ -50,6 +52,10 @@ async def buscar_usuario_por_email(email: str) -> Optional[dict]:
             row["created_at"] = row["created_at"].isoformat()
         if row.get("updated_at") is not None:
             row["updated_at"] = row["updated_at"].isoformat()
+        if not row.get("metodos_habilitados"):
+            row["metodos_habilitados"] = _TODOS_METODOS
+        else:
+            row["metodos_habilitados"] = list(row["metodos_habilitados"])
         return row
 
     except AppError:
