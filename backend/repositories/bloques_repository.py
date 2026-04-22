@@ -1,43 +1,68 @@
 """
-Repositorio de bloques — acceso a tablas `bloques` y `bloque_contactos`.
+Repositorio de bloques — acceso a tablas `bloques` y `bloques_contactos`.
 
 Campos bloques: id, nombre, created_at.
-Campos bloque_contactos: id, bloque_id, contacto_id, created_at.
+Campos bloques_contactos: id, bloque_id, contacto_id, created_at.
+Usa asyncpg directamente contra el pool de Postgres local.
 """
 
 from __future__ import annotations
 
-import asyncio
+import json
+import uuid
+from datetime import datetime
 
-from integrations.supabase_client import get_supabase_client
+from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
 
 log = get_logger(__name__)
 
 _TABLE = "bloques"
-_TABLE_REL = "bloque_contactos"
+_TABLE_REL = "bloques_contactos"
+
+
+def _record_to_dict(record) -> dict:
+    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
+    row = dict(record)
+    for key, val in list(row.items()):
+        if isinstance(val, uuid.UUID):
+            row[key] = str(val)
+        elif isinstance(val, datetime):
+            row[key] = val.isoformat()
+        elif key == "enrichment_sources":
+            if isinstance(val, str):
+                try:
+                    row[key] = json.loads(val)
+                except (json.JSONDecodeError, ValueError):
+                    row[key] = []
+            elif val is None:
+                row[key] = []
+    return row
 
 
 async def listar(usuario_id: str = None) -> list[dict]:
     """Devuelve todos los bloques con cantidad de contactos."""
     try:
-        loop = asyncio.get_event_loop()
-        def _q():
-            q = get_supabase_client().table(_TABLE).select("*").order("created_at", desc=True)
-            if usuario_id:
-                q = q.eq("usuario_id", usuario_id)
-            return q.execute()
-        resp = await loop.run_in_executor(None, _q)
-        bloques = resp.data
-        # Contar contactos por bloque
-        for bloque in bloques:
-            count_resp = await loop.run_in_executor(None, lambda bid=bloque["id"]: (
-                get_supabase_client().table(_TABLE_REL)
-                .select("id", count="exact").eq("bloque_id", bid).execute()
-            ))
-            bloque["cantidad_contactos"] = count_resp.count or 0
-        return bloques
+        uid = uuid.UUID(usuario_id) if usuario_id else None
+        async with get_pool().acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT b.*, COALESCE(COUNT(bc.id), 0) AS cantidad_contactos
+                FROM bloques b
+                LEFT JOIN bloques_contactos bc ON bc.bloque_id = b.id
+                WHERE ($1::uuid IS NULL OR b.usuario_id = $1)
+                GROUP BY b.id
+                ORDER BY b.created_at DESC
+                """,
+                uid,
+            )
+        result = []
+        for r in rows:
+            d = _record_to_dict(r)
+            d["cantidad_contactos"] = int(d.get("cantidad_contactos", 0))
+            result.append(d)
+        return result
     except Exception as exc:
         log.error("Error listando bloques: %s", exc)
         raise AppError("Error al listar bloques", "DB_BLOQUES_LIST", 500) from exc
@@ -46,30 +71,29 @@ async def listar(usuario_id: str = None) -> list[dict]:
 async def crear(nombre: str, usuario_id: str = None) -> dict:
     """Crea un bloque nuevo."""
     try:
-        loop = asyncio.get_event_loop()
-        data = {"nombre": nombre}
-        if usuario_id:
-            data["usuario_id"] = usuario_id
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE)
-            .insert(data).execute()
-        ))
+        uid = uuid.UUID(usuario_id) if usuario_id else None
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO bloques (nombre, usuario_id) VALUES ($1, $2) RETURNING *",
+                nombre,
+                uid,
+            )
         log.info("Bloque creado: %s", nombre)
-        return resp.data[0]
+        return _record_to_dict(row)
     except Exception as exc:
         log.error("Error creando bloque: %s", exc)
         raise AppError("Error al crear bloque", "DB_BLOQUES_CREATE", 500) from exc
 
 
 async def eliminar(bloque_id: str) -> bool:
-    """Elimina un bloque por id (cascade borra relaciones)."""
+    """Elimina un bloque por id (cascade borra relaciones en bloques_contactos)."""
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE)
-            .delete().eq("id", bloque_id).execute()
-        ))
-        eliminado = len(resp.data) > 0
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "DELETE FROM bloques WHERE id = $1 RETURNING id",
+                uuid.UUID(bloque_id),
+            )
+        eliminado = row is not None
         if eliminado:
             log.info("Bloque eliminado: %s", bloque_id)
         return eliminado
@@ -80,14 +104,14 @@ async def eliminar(bloque_id: str) -> bool:
 
 async def agregar_contactos(bloque_id: str, contacto_ids: list[str]) -> None:
     """Agrega contactos a un bloque (ignora duplicados)."""
-    rows = [{"bloque_id": bloque_id, "contacto_id": cid} for cid in contacto_ids]
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE_REL)
-            .upsert(rows, on_conflict="bloque_id,contacto_id", ignore_duplicates=True)
-            .execute()
-        ))
+        tuplas = [(uuid.UUID(bloque_id), uuid.UUID(cid)) for cid in contacto_ids]
+        async with get_pool().acquire() as conn:
+            await conn.executemany(
+                "INSERT INTO bloques_contactos (bloque_id, contacto_id) "
+                "VALUES ($1, $2) ON CONFLICT (bloque_id, contacto_id) DO NOTHING",
+                tuplas,
+            )
         log.info("Agregados %d contactos al bloque %s", len(contacto_ids), bloque_id)
     except Exception as exc:
         log.error("Error agregando contactos al bloque: %s", exc)
@@ -97,12 +121,13 @@ async def agregar_contactos(bloque_id: str, contacto_ids: list[str]) -> None:
 async def actualizar(bloque_id: str, nombre: str) -> bool:
     """Actualiza el nombre de un bloque."""
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE)
-            .update({"nombre": nombre}).eq("id", bloque_id).execute()
-        ))
-        actualizado = len(resp.data) > 0
+        async with get_pool().acquire() as conn:
+            result = await conn.execute(
+                "UPDATE bloques SET nombre = $1 WHERE id = $2",
+                nombre,
+                uuid.UUID(bloque_id),
+            )
+        actualizado = result.startswith("UPDATE ") and int(result.split()[1]) > 0
         if actualizado:
             log.info("Bloque actualizado: %s -> %s", bloque_id, nombre)
         return actualizado
@@ -114,13 +139,13 @@ async def actualizar(bloque_id: str, nombre: str) -> bool:
 async def eliminar_contacto(bloque_id: str, contacto_id: str) -> bool:
     """Elimina un contacto de un bloque."""
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE_REL)
-            .delete().eq("bloque_id", bloque_id).eq("contacto_id", contacto_id)
-            .execute()
-        ))
-        eliminado = len(resp.data) > 0
+        async with get_pool().acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM bloques_contactos WHERE bloque_id = $1 AND contacto_id = $2",
+                uuid.UUID(bloque_id),
+                uuid.UUID(contacto_id),
+            )
+        eliminado = result.startswith("DELETE ") and int(result.split()[1]) > 0
         if eliminado:
             log.info("Contacto %s eliminado del bloque %s", contacto_id, bloque_id)
         return eliminado
@@ -132,13 +157,17 @@ async def eliminar_contacto(bloque_id: str, contacto_id: str) -> bool:
 async def obtener_contactos(bloque_id: str) -> list[dict]:
     """Devuelve los contactos completos de un bloque."""
     try:
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE_REL)
-            .select("contacto_id, contacts(*)")
-            .eq("bloque_id", bloque_id).execute()
-        ))
-        return [row["contacts"] for row in resp.data if row.get("contacts")]
+        async with get_pool().acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT c.*
+                FROM bloques_contactos bc
+                JOIN contacts c ON c.id = bc.contacto_id
+                WHERE bc.bloque_id = $1
+                """,
+                uuid.UUID(bloque_id),
+            )
+        return [_record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error obteniendo contactos del bloque %s: %s", bloque_id, exc)
         raise AppError("Error al obtener contactos", "DB_BLOQUES_GET", 500) from exc

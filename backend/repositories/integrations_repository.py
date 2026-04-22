@@ -4,17 +4,19 @@ Repositorio de integraciones — acceso a tabla `integraciones`.
 Almacena API keys de servicios externos (Apollo, etc.).
 Las keys se cifran con Fernet (AES-128-CBC) antes de persistir para que
 no queden en texto plano en la base de datos ni en backups.
+Usa asyncpg directamente contra el pool de Postgres local.
 """
 
 from __future__ import annotations
 
-import asyncio
+import uuid
+from datetime import datetime
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from config.settings import get_settings
-from integrations.supabase_client import get_supabase_client
+from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -52,25 +54,44 @@ def _descifrar(valor: str) -> str:
         return valor
 
 
+def _record_to_dict(record) -> dict:
+    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
+    row = dict(record)
+    for key, val in list(row.items()):
+        if isinstance(val, uuid.UUID):
+            row[key] = str(val)
+        elif isinstance(val, datetime):
+            row[key] = val.isoformat()
+    return row
+
+
 async def guardar_api_key(servicio: str, api_key: str, usuario_id: str = None) -> dict:
     """
     Guarda o actualiza la API key cifrada de un servicio.
 
-    Usa upsert por servicio+usuario_id para insertar o actualizar.
+    Usa INSERT ... ON CONFLICT DO UPDATE para insertar o actualizar.
     """
     try:
         cifrada = _cifrar(api_key)
-        data = {"servicio": servicio, "api_key": cifrada, "activo": True}
-        if usuario_id:
-            data["usuario_id"] = usuario_id
-        loop = asyncio.get_event_loop()
-        resp = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table(_TABLE).upsert(
-                data, on_conflict="servicio,usuario_id",
-            ).execute()
-        ))
+        uid = uuid.UUID(usuario_id) if usuario_id else None
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO integraciones (servicio, api_key, activo, usuario_id)
+                VALUES ($1, $2, true, $3)
+                ON CONFLICT (servicio, usuario_id)
+                DO UPDATE SET
+                    api_key = EXCLUDED.api_key,
+                    activo = EXCLUDED.activo,
+                    updated_at = NOW()
+                RETURNING *
+                """,
+                servicio,
+                cifrada,
+                uid,
+            )
         log.info("API key guardada para %s (usuario=%s)", servicio, usuario_id)
-        return resp.data[0]
+        return _record_to_dict(row)
     except Exception as exc:
         log.error("Error guardando API key de %s: %s", servicio, exc)
         raise AppError("Error al guardar API key", "DB_INTEGRATIONS_SAVE", 500) from exc
@@ -79,17 +100,19 @@ async def guardar_api_key(servicio: str, api_key: str, usuario_id: str = None) -
 async def obtener_api_key(servicio: str, usuario_id: str = None) -> Optional[str]:
     """Obtiene y descifra la API key activa de un servicio."""
     try:
-        loop = asyncio.get_event_loop()
-        def _q():
-            q = get_supabase_client().table(_TABLE).select("api_key") \
-                .eq("servicio", servicio).eq("activo", True)
-            if usuario_id:
-                q = q.eq("usuario_id", usuario_id)
-            return q.limit(1).execute()
-        resp = await loop.run_in_executor(None, _q)
-        if not resp.data:
+        uid = uuid.UUID(usuario_id) if usuario_id else None
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT api_key FROM integraciones "
+                "WHERE servicio = $1 AND activo = true "
+                "AND ($2::uuid IS NULL OR usuario_id = $2) "
+                "LIMIT 1",
+                servicio,
+                uid,
+            )
+        if not row:
             return None
-        return _descifrar(resp.data[0]["api_key"])
+        return _descifrar(row["api_key"])
     except Exception as exc:
         log.error("Error obteniendo API key de %s: %s", servicio, exc)
         raise AppError("Error al obtener API key", "DB_INTEGRATIONS_GET", 500) from exc
@@ -98,15 +121,15 @@ async def obtener_api_key(servicio: str, usuario_id: str = None) -> Optional[str
 async def eliminar_api_key(servicio: str, usuario_id: str = None) -> bool:
     """Desactiva la API key de un servicio."""
     try:
-        loop = asyncio.get_event_loop()
-        def _q():
-            q = get_supabase_client().table(_TABLE).update({"activo": False}) \
-                .eq("servicio", servicio)
-            if usuario_id:
-                q = q.eq("usuario_id", usuario_id)
-            return q.execute()
-        resp = await loop.run_in_executor(None, _q)
-        eliminado = len(resp.data) > 0
+        uid = uuid.UUID(usuario_id) if usuario_id else None
+        async with get_pool().acquire() as conn:
+            result = await conn.execute(
+                "UPDATE integraciones SET activo = false, updated_at = NOW() "
+                "WHERE servicio = $1 AND ($2::uuid IS NULL OR usuario_id = $2)",
+                servicio,
+                uid,
+            )
+        eliminado = result.startswith("UPDATE ") and int(result.split()[1]) > 0
         if eliminado:
             log.info("API key desactivada para %s (usuario=%s)", servicio, usuario_id)
         return eliminado
