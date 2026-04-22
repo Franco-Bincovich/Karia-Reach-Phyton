@@ -24,11 +24,15 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
 
-    # --- Gmail OAuth ---
+    # --- Gmail OAuth (credenciales globales / fallback superadmin) ---
     GMAIL_CLIENT_ID: str = ""
     GMAIL_CLIENT_SECRET: str = ""
     GMAIL_REFRESH_TOKEN: str = ""
     GMAIL_FROM_EMAIL: str = ""
+
+    # --- Gmail OAuth por usuario ---
+    gmail_oauth_redirect_uri: str = "http://localhost:3001/api/gmail/oauth/callback"
+    gmail_superadmin_fallback: bool = True
 
     # --- Auth ---
     KARIA_API_KEY: str = ""
