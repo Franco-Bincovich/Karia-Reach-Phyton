@@ -20,10 +20,6 @@ class Settings(BaseSettings):
     BASE_URL: str = "http://localhost:3001"
     ALLOWED_ORIGINS: str = "http://localhost:5173"
 
-    # --- Supabase ---
-    SUPABASE_URL: str = ""
-    SUPABASE_SERVICE_KEY: str = ""
-
     # --- Anthropic ---
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"

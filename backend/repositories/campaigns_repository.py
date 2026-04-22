@@ -1,16 +1,14 @@
 """
 Repositorio de campanas — acceso a `campaigns` y `campaign_results`.
-Respondidos se calculan via email_replies (todavia en Supabase — se migra en paso 2.5).
+Respondidos se calculan via email_replies en la misma DB Postgres.
 """
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from datetime import datetime
 
 from integrations.postgres_client import get_pool
-from integrations.supabase_client import get_supabase_client
 from logger import get_logger
 from middleware.error_handler import AppError
 
@@ -233,13 +231,12 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
         total = len(resultados)
 
-        # email_replies todavia en Supabase — se migra en paso 2.5
-        loop = asyncio.get_event_loop()
-        replies = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table("email_replies").select("id")
-            .eq("campaign_id", campaign_id).execute()
-        ))
-        respondidos = len(replies.data)
+        async with get_pool().acquire() as conn:
+            respondidos = await conn.fetchval(
+                "SELECT COUNT(*) FROM email_replies WHERE campaign_id = $1",
+                uuid.UUID(campaign_id),
+            )
+        respondidos = int(respondidos or 0)
 
         return {
             "campana": {k: c.get(k) for k in ("nombre", "status", "created_at", "scheduled_at")},
@@ -276,12 +273,9 @@ async def obtener_estadisticas_globales() -> dict:
         abiertos = sum(1 for r in resultados if r.get("opened_at"))
         base = enviados
 
-        # email_replies todavia en Supabase — se migra en paso 2.5
-        loop = asyncio.get_event_loop()
-        all_replies = await loop.run_in_executor(None, lambda: (
-            get_supabase_client().table("email_replies").select("id").execute()
-        ))
-        respondidos = len(all_replies.data)
+        async with get_pool().acquire() as conn:
+            respondidos = await conn.fetchval("SELECT COUNT(*) FROM email_replies")
+        respondidos = int(respondidos or 0)
 
         return {
             "total_campanas": len(campanas),

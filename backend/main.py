@@ -66,7 +66,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         await init_pool()
     except Exception as exc:
-        log.error("No se pudo inicializar el pool de Postgres — el backend sigue con Supabase: %s", exc)
+        log.error("No se pudo inicializar el pool de Postgres: %s", exc)
 
     log.info("Karia Reach Backend listo en puerto %s", settings.PORT)
     yield
@@ -77,8 +77,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 def _log_startup_status() -> None:
     """Loguea el estado de las variables criticas al arrancar."""
     checks = {
-        "SUPABASE_URL": bool(settings.SUPABASE_URL),
-        "SUPABASE_SERVICE_KEY": bool(settings.SUPABASE_SERVICE_KEY),
         "ANTHROPIC_API_KEY": bool(settings.ANTHROPIC_API_KEY),
         "GMAIL_CLIENT_ID": bool(settings.GMAIL_CLIENT_ID),
         "KARIA_API_KEY": bool(settings.KARIA_API_KEY),

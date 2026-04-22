@@ -6,10 +6,10 @@ Valida datos, crea registros y orquesta la ejecucion via send_service.
 
 from __future__ import annotations
 
-import asyncio
+import uuid
 from datetime import datetime, timezone
 
-from integrations.supabase_client import get_supabase_client
+from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
 from repositories import campanas_programadas_repository as repo
@@ -18,25 +18,27 @@ from services import send_service
 log = get_logger(__name__)
 
 
-async def _validar_template(template_id: str) -> None:
-    """Verifica que el template exista en la base de datos."""
-    loop = asyncio.get_event_loop()
-    resp = await loop.run_in_executor(None, lambda: (
-        get_supabase_client().table("templates")
-        .select("id").eq("id", template_id).limit(1).execute()
-    ))
-    if not resp.data:
+async def _validar_template(template_id: str, usuario_id: str) -> None:
+    """Verifica que el template exista y pertenezca al usuario."""
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM templates WHERE id = $1 AND usuario_id = $2 LIMIT 1",
+            uuid.UUID(template_id),
+            uuid.UUID(usuario_id),
+        )
+    if not row:
         raise AppError("Template no encontrado", "TEMPLATE_NOT_FOUND", 404)
 
 
-async def _validar_contactos(contact_ids: list[str]) -> None:
-    """Verifica que exista al menos un contacto en la lista."""
-    loop = asyncio.get_event_loop()
-    resp = await loop.run_in_executor(None, lambda: (
-        get_supabase_client().table("contacts")
-        .select("id").in_("id", contact_ids).limit(1).execute()
-    ))
-    if not resp.data:
+async def _validar_contactos(contact_ids: list[str], usuario_id: str) -> None:
+    """Verifica que TODOS los contactos existan y pertenezcan al usuario."""
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id FROM contacts WHERE id = ANY($1::uuid[]) AND usuario_id = $2",
+            [uuid.UUID(cid) for cid in contact_ids],
+            uuid.UUID(usuario_id),
+        )
+    if len(rows) != len(contact_ids):
         raise AppError("Ningun contacto encontrado", "CONTACTS_NOT_FOUND", 404)
 
 
@@ -52,8 +54,8 @@ async def crear(usuario_id: str, datos: dict) -> dict:
     if tipo == "recurrente" and not datos.get("dias_semana"):
         raise AppError("dias_semana es requerido para campanas recurrentes", "DIAS_REQUERIDOS", 400)
 
-    await _validar_template(str(datos["template_id"]))
-    await _validar_contactos([str(cid) for cid in datos["contact_ids"]])
+    await _validar_template(str(datos["template_id"]), usuario_id)
+    await _validar_contactos([str(cid) for cid in datos["contact_ids"]], usuario_id)
 
     campana = await repo.crear(usuario_id, {
         "nombre": datos["nombre"],
