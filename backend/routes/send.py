@@ -17,7 +17,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import send_controller
-from middleware.auth import get_usuario_id_from_request
+from middleware.auth import get_rol_from_request, get_usuario_id_from_request
 from middleware.rate_limiter import send_limit
 
 router = APIRouter(prefix="/api/send", tags=["send"])
@@ -40,11 +40,13 @@ class CampaignRequest(BaseModel):
 async def enviar_campana(request: Request, body: CampaignRequest) -> dict:
     """Crea y ejecuta una campana de email."""
     uid = get_usuario_id_from_request(request)
+    rol = get_rol_from_request(request)
     return await send_controller.enviar_campana(
         body.nombre, str(body.template_id),
         [str(cid) for cid in body.contact_ids],
         body.scheduled_at.isoformat() if body.scheduled_at else None,
         uid,
+        rol,
     )
 
 

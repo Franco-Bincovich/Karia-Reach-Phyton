@@ -12,10 +12,10 @@ from services import send_service
 
 async def enviar_campana(
     nombre: str, template_id: str, contact_ids: list[str],
-    scheduled_at: Optional[str], usuario_id: str = None,
+    scheduled_at: Optional[str], usuario_id: str = None, rol: str = "user",
 ) -> dict:
     """Crea y ejecuta una campana de email."""
-    campana = await send_service.enviar_campana(nombre, template_id, contact_ids, scheduled_at, usuario_id)
+    campana = await send_service.enviar_campana(nombre, template_id, contact_ids, scheduled_at, usuario_id, rol)
     return {"data": campana}
 
 

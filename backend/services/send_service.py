@@ -14,6 +14,7 @@ from integrations import gmail_client
 from logger import get_logger
 from middleware.error_handler import AppError
 from repositories import campaigns_repository, contacts_repository, templates_repository
+from services import gmail_oauth_service
 from utils.security import generar_token_tracking
 
 settings = get_settings()
@@ -91,7 +92,7 @@ async def _registrar_resultados(
 
 async def enviar_campana(
     nombre: str, template_id: str, contact_ids: list[str],
-    scheduled_at: Optional[str] = None, usuario_id: str = None,
+    scheduled_at: Optional[str] = None, usuario_id: str = None, rol: str = "user",
 ) -> dict:
     """Crea y ejecuta una campana de email."""
     _require_uid(usuario_id)
@@ -107,6 +108,8 @@ async def enviar_campana(
     if len(contactos) != len(contact_ids):
         raise AppError("No tenés acceso a algunos contactos seleccionados", "CONTACTS_FORBIDDEN", 403)
 
+    credenciales = await gmail_oauth_service.obtener_credenciales_validas(usuario_id, rol)
+
     camp_data = {
         "nombre": nombre, "template_id": template_id, "contacts_count": len(contactos),
         "status": "sending", "sent_count": 0, "failed_count": 0, "scheduled_at": scheduled_at,
@@ -115,7 +118,7 @@ async def enviar_campana(
         camp_data["usuario_id"] = usuario_id
     campana = await campaigns_repository.crear(camp_data)
     emails, contacto_por_email = _preparar_emails(contactos, template, campana["id"])
-    resultados_gmail = await gmail_client.enviar_bulk(emails)
+    resultados_gmail = await gmail_client.enviar_bulk(credenciales, emails)
     metricas = await _registrar_resultados(campana["id"], emails, contacto_por_email, resultados_gmail)
     campana = await campaigns_repository.actualizar_metricas(
         campana["id"], {**metricas, "status": "completed"},

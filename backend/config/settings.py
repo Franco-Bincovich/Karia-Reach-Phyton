@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # --- Gmail OAuth por usuario ---
     gmail_oauth_redirect_uri: str = "http://localhost:3001/api/gmail/oauth/callback"
     gmail_superadmin_fallback: bool = True
+    frontend_url: str = "http://localhost:5173"
 
     # --- Auth ---
     KARIA_API_KEY: str = ""

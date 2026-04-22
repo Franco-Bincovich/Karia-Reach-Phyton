@@ -11,10 +11,11 @@ Endpoints:
 from uuid import UUID
 
 import bleach
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from controllers import replies_controller
+from middleware.auth import get_rol_from_request, get_usuario_id_from_request
 
 router = APIRouter(prefix="/api/replies", tags=["replies"])
 
@@ -31,16 +32,20 @@ async def listar_respuestas(campaign_id: UUID) -> dict:
 
 
 @router.post("/{campaign_id}/sync")
-async def sincronizar(campaign_id: UUID) -> dict:
+async def sincronizar(request: Request, campaign_id: UUID) -> dict:
     """Sincroniza respuestas nuevas desde Gmail para una campana."""
-    return await replies_controller.sincronizar(str(campaign_id))
+    uid = get_usuario_id_from_request(request)
+    rol = get_rol_from_request(request)
+    return await replies_controller.sincronizar(str(campaign_id), uid, rol)
 
 
 @router.post("/{reply_id}/respond")
-async def responder(reply_id: UUID, body: RespondRequest) -> dict:
+async def responder(request: Request, reply_id: UUID, body: RespondRequest) -> dict:
     """Responde a una respuesta recibida. Sanitiza HTML antes de enviar."""
+    uid = get_usuario_id_from_request(request)
+    rol = get_rol_from_request(request)
     cuerpo_limpio = bleach.clean(body.cuerpo, tags=[], strip=True)
-    return await replies_controller.responder(str(reply_id), cuerpo_limpio)
+    return await replies_controller.responder(str(reply_id), cuerpo_limpio, uid, rol)
 
 
 @router.patch("/{reply_id}/read")

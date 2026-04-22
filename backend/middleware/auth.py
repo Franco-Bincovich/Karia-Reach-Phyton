@@ -22,7 +22,7 @@ log = get_logger(__name__)
 PUBLIC_PATHS = {"/health"}
 # /track/ es publico porque los pixels se cargan desde clientes de correo.
 # /api/auth/ es publico para permitir login sin token previo.
-PUBLIC_PREFIXES = ("/track/", "/api/auth/")
+PUBLIC_PREFIXES = ("/track/", "/api/auth/", "/api/gmail/oauth/callback")
 
 
 def get_rol_from_request(request: Request) -> str:
