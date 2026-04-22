@@ -8,9 +8,9 @@ from __future__ import annotations
 from services import replies_service
 
 
-async def listar_respuestas(campaign_id: str) -> dict:
+async def listar_respuestas(campaign_id: str, usuario_id: str = None) -> dict:
     """Lista todas las respuestas de una campana."""
-    respuestas = await replies_service.listar_respuestas(campaign_id)
+    respuestas = await replies_service.listar_respuestas(campaign_id, usuario_id)
     return {"data": respuestas, "total": len(respuestas)}
 
 
@@ -26,7 +26,7 @@ async def responder(reply_id: str, cuerpo: str, usuario_id: str, rol: str) -> di
     return {"data": resultado}
 
 
-async def marcar_leida(reply_id: str) -> dict:
+async def marcar_leida(reply_id: str, usuario_id: str = None) -> dict:
     """Marca una respuesta como leida."""
-    await replies_service.marcar_leida(reply_id)
+    await replies_service.marcar_leida(reply_id, usuario_id)
     return {"updated": True}

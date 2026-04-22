@@ -9,27 +9,16 @@ Usa asyncpg directamente contra el pool de Postgres local.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 
 log = get_logger(__name__)
 
 _TABLE = "integraciones_gmail"
-
-
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-    return row
 
 
 async def guardar_credenciales(

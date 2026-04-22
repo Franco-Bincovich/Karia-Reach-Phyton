@@ -22,3 +22,4 @@ compose_limit = limiter.limit(settings.RATE_LIMIT_COMPOSE)
 send_limit = limiter.limit(settings.RATE_LIMIT_SEND)
 apollo_limit = limiter.limit("20/minute")
 search_limit = limiter.limit("5/minute")  # Busqueda IA: costosa (Claude + web_search)
+tracking_limit = limiter.limit("60/minute")  # Pixel de apertura: publico, limitar enumeracion

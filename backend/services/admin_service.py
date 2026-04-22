@@ -1,242 +1,89 @@
 """
-Servicio de administración — lógica de negocio para gestión de usuarios.
-
+Servicio de administracion — logica de negocio para gestion de usuarios.
 Solo accesible para superadmins.
 """
-
 from __future__ import annotations
-
-import uuid
-from datetime import datetime
 
 import bcrypt
 
-from integrations.postgres_client import get_pool
+from config.settings import get_settings
 from logger import get_logger
 from middleware.error_handler import AppError
+from repositories import admin_repository
+from utils.db import METODOS_BUSQUEDA_VALIDOS
 
 log = get_logger(__name__)
 
 
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-    return row
-
-
 async def crear_usuario(email: str, password: str, nombre: str, rol: str) -> dict:
-    """Crea un usuario nuevo. Valida unicidad de email, hashea password con bcrypt."""
+    """Crea usuario validando rol, verificando email unico y hasheando password."""
     if rol not in ("user", "superadmin"):
-        raise AppError("Rol inválido", "INVALID_ROLE", 400)
-    try:
-        async with get_pool().acquire() as conn:
-            existente = await conn.fetchrow(
-                "SELECT id FROM usuarios_reach WHERE email = $1 LIMIT 1", email
-            )
-            if existente:
-                raise AppError("El email ya está registrado", "EMAIL_ALREADY_EXISTS", 409)
-            password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            row = await conn.fetchrow(
-                """
-                INSERT INTO usuarios_reach (email, password_hash, nombre, rol, activo)
-                VALUES ($1, $2, $3, $4, true)
-                RETURNING id, email, nombre, rol, activo, created_at, updated_at
-                """,
-                email, password_hash, nombre, rol,
-            )
-        log.info("Admin: usuario creado — %s (%s)", email, rol)
-        return _record_to_dict(row)
-    except AppError:
-        raise
-    except Exception as exc:
-        log.error("Error creando usuario: %s", exc)
-        raise AppError("Error al crear usuario", "DB_ADMIN_USER_CREATE", 500) from exc
+        raise AppError("Rol invalido", "INVALID_ROLE", 400)
+    if await admin_repository.buscar_por_email(email):
+        raise AppError("El email ya esta registrado", "EMAIL_ALREADY_EXISTS", 409)
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    usuario = await admin_repository.insertar_usuario(email, password_hash, nombre, rol)
+    log.info("Admin: usuario creado — %s (%s)", email, rol)
+    return usuario
 
 
 async def listar_usuarios() -> list[dict]:
-    """Lista todos los usuarios con estadísticas de contactos y campañas."""
-    try:
-        async with get_pool().acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT u.id, u.nombre, u.email, u.rol, u.created_at,
-                       COUNT(DISTINCT c.id)    AS total_contactos,
-                       COUNT(DISTINCT camp.id) AS total_campanas,
-                       COALESCE(SUM(camp.sent_count), 0) AS total_emails_enviados
-                FROM usuarios_reach u
-                LEFT JOIN contacts   c    ON c.usuario_id    = u.id
-                LEFT JOIN campaigns  camp ON camp.usuario_id = u.id
-                GROUP BY u.id, u.nombre, u.email, u.rol, u.created_at
-                ORDER BY u.created_at DESC
-                """
-            )
-        result = []
-        for r in rows:
-            d = _record_to_dict(r)
-            d["total_contactos"] = int(d.get("total_contactos", 0))
-            d["total_campanas"] = int(d.get("total_campanas", 0))
-            d["total_emails_enviados"] = int(d.get("total_emails_enviados", 0))
-            result.append(d)
-        log.info("Admin: listados %d usuarios", len(result))
-        return result
-    except Exception as exc:
-        log.error("Error listando usuarios: %s", exc)
-        raise AppError("Error al listar usuarios", "DB_ADMIN_USERS_LIST", 500) from exc
+    """Lista todos los usuarios con estadisticas."""
+    result = await admin_repository.listar_usuarios()
+    log.info("Admin: listados %d usuarios", len(result))
+    return result
 
 
 async def obtener_usuario(id: str) -> dict:
-    """Obtiene detalle de un usuario con sus últimos contactos y campañas."""
-    try:
-        uid = uuid.UUID(id)
-        async with get_pool().acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT * FROM usuarios_reach WHERE id = $1 LIMIT 1", uid
-            )
-            if not row:
-                raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
-            usuario = _record_to_dict(row)
-
-            contactos_rows = await conn.fetch(
-                "SELECT * FROM contacts WHERE usuario_id = $1 ORDER BY created_at DESC LIMIT 20",
-                uid,
-            )
-            campanas_rows = await conn.fetch(
-                "SELECT * FROM campaigns WHERE usuario_id = $1 ORDER BY created_at DESC LIMIT 10",
-                uid,
-            )
-            total_contactos = await conn.fetchval(
-                "SELECT COUNT(*) FROM contacts WHERE usuario_id = $1", uid
-            )
-            total_emails = await conn.fetchval(
-                "SELECT COALESCE(SUM(sent_count), 0) FROM campaigns WHERE usuario_id = $1", uid
-            )
-
-            try:
-                integ_rows = await conn.fetch(
-                    "SELECT servicio FROM integraciones WHERE activo = true AND usuario_id = $1",
-                    uid,
-                )
-                servicios = [r["servicio"] for r in integ_rows]
-                if usuario.get("rol") == "superadmin":
-                    from config.settings import get_settings
-                    if get_settings().GMAIL_FROM_EMAIL:
-                        servicios.append("gmail")
-                usuario["integraciones"] = servicios
-            except Exception:
-                usuario["integraciones"] = []
-
-        campanas_list = [_record_to_dict(r) for r in campanas_rows]
-        usuario["contactos"] = [_record_to_dict(r) for r in contactos_rows]
-        usuario["campanas"] = campanas_list
-        usuario["total_contactos"] = int(total_contactos or 0)
-        usuario["total_campanas"] = len(campanas_list)
-        usuario["total_emails_enviados"] = int(total_emails or 0)
-        return usuario
-    except AppError:
-        raise
-    except Exception as exc:
-        log.error("Error obteniendo usuario %s: %s", id, exc)
-        raise AppError("Error al obtener usuario", "DB_ADMIN_USER_GET", 500) from exc
-
-
-_METODOS_VALIDOS = frozenset(["claude_ai", "apollo", "perplexity", "apify", "scraping_web", "carga_manual"])
-_TODOS_METODOS = list(_METODOS_VALIDOS)
+    """Obtiene detalle completo de un usuario con contactos, campanas e integraciones."""
+    usuario = await admin_repository.obtener_usuario_por_id(id)
+    if not usuario:
+        raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
+    contactos = await admin_repository.obtener_contactos_usuario(id)
+    campanas = await admin_repository.obtener_campanas_usuario(id)
+    contadores = await admin_repository.obtener_contadores_usuario(id)
+    servicios = await admin_repository.obtener_integraciones_usuario(id)
+    if usuario.get("rol") == "superadmin" and get_settings().GMAIL_FROM_EMAIL:
+        servicios.append("gmail")
+    usuario["contactos"] = contactos
+    usuario["campanas"] = campanas
+    usuario["total_contactos"] = contadores["total_contactos"]
+    usuario["total_campanas"] = len(campanas)
+    usuario["total_emails_enviados"] = contadores["total_emails"]
+    usuario["integraciones"] = servicios
+    return usuario
 
 
 async def obtener_metodos(id: str) -> dict:
-    """Retorna los metodos_habilitados de un usuario."""
-    try:
-        async with get_pool().acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT metodos_habilitados FROM usuarios_reach WHERE id = $1 LIMIT 1",
-                uuid.UUID(id),
-            )
-        if not row:
-            raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
-        metodos = list(row["metodos_habilitados"] or _TODOS_METODOS)
-        return {"metodos_habilitados": metodos}
-    except AppError:
-        raise
-    except Exception as exc:
-        log.error("Error obteniendo metodos usuario %s: %s", id, exc)
-        raise AppError("Error al obtener métodos", "DB_ADMIN_METODOS_GET", 500) from exc
+    """Retorna metodos_habilitados del usuario (todos si la columna es NULL)."""
+    metodos = await admin_repository.obtener_metodos_habilitados(id)
+    return {"metodos_habilitados": metodos if metodos is not None else list(METODOS_BUSQUEDA_VALIDOS)}
 
 
 async def editar_usuario(id: str, datos: dict) -> dict:
-    """Edita nombre, email, rol y/o metodos_habilitados de un usuario."""
+    """Edita campos del usuario validando rol y metodos antes de persistir."""
     campos = {k: v for k, v in datos.items() if k in ("nombre", "email", "rol", "metodos_habilitados") and v is not None}
     if not campos:
         raise AppError("No hay campos para actualizar", "NO_UPDATE_FIELDS", 400)
     if "rol" in campos and campos["rol"] not in ("user", "superadmin"):
-        raise AppError("Rol inválido", "INVALID_ROLE", 400)
+        raise AppError("Rol invalido", "INVALID_ROLE", 400)
     if "metodos_habilitados" in campos:
         metodos = campos["metodos_habilitados"]
-        if not isinstance(metodos, list) or not all(m in _METODOS_VALIDOS for m in metodos):
-            raise AppError("metodos_habilitados contiene valores inválidos", "INVALID_METODOS", 400)
-    try:
-        set_clauses, vals = [], []
-        for i, (col, val) in enumerate(campos.items(), 1):
-            set_clauses.append(f"{col} = ${i}")
-            vals.append(val)
-        vals.append(uuid.UUID(id))
-        query = (
-            f"UPDATE usuarios_reach SET {', '.join(set_clauses)} "
-            f"WHERE id = ${len(vals)} RETURNING *"
-        )
-        async with get_pool().acquire() as conn:
-            row = await conn.fetchrow(query, *vals)
-        if not row:
-            raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
-        log.info("Admin: usuario %s editado — campos: %s", id, list(campos.keys()))
-        return _record_to_dict(row)
-    except AppError:
-        raise
-    except Exception as exc:
-        log.error("Error editando usuario %s: %s", id, exc)
-        raise AppError("Error al editar usuario", "DB_ADMIN_USER_EDIT", 500) from exc
+        if not isinstance(metodos, list) or not all(m in METODOS_BUSQUEDA_VALIDOS for m in metodos):
+            raise AppError("metodos_habilitados contiene valores invalidos", "INVALID_METODOS", 400)
+    row = await admin_repository.editar_usuario(id, campos)
+    if not row:
+        raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
+    log.info("Admin: usuario %s editado — campos: %s", id, list(campos.keys()))
+    return row
 
 
 async def eliminar_usuario(id: str, mi_id: str) -> bool:
-    """Elimina un usuario y todos sus datos en cascada."""
+    """Elimina usuario con cascada; lanza error si intenta eliminarse a si mismo."""
     if id == mi_id:
-        raise AppError("No podés eliminarte a vos mismo", "CANNOT_DELETE_SELF", 400)
-    try:
-        uid = uuid.UUID(id)
-        async with get_pool().acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT id FROM usuarios_reach WHERE id = $1 LIMIT 1", uid
-            )
-            if not row:
-                raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
-            async with conn.transaction():
-                # email_replies y campaign_results no tienen usuario_id — se borran via campaigns
-                await conn.execute(
-                    "DELETE FROM email_replies WHERE campaign_id IN "
-                    "(SELECT id FROM campaigns WHERE usuario_id = $1)",
-                    uid,
-                )
-                await conn.execute(
-                    "DELETE FROM campaign_results WHERE campaign_id IN "
-                    "(SELECT id FROM campaigns WHERE usuario_id = $1)",
-                    uid,
-                )
-                # bloques CASCADE → bloques_contactos; no hace falta borrarla explícitamente
-                for tabla in ("campaigns", "bloques", "contacts", "integraciones"):
-                    await conn.execute(
-                        f"DELETE FROM {tabla} WHERE usuario_id = $1", uid
-                    )
-                await conn.execute(
-                    "DELETE FROM usuarios_reach WHERE id = $1", uid
-                )
-        log.info("Admin: usuario %s eliminado con cascada", id)
-        return True
-    except AppError:
-        raise
-    except Exception as exc:
-        log.error("Error eliminando usuario %s: %s", id, exc)
-        raise AppError("Error al eliminar usuario", "DB_ADMIN_USER_DEL", 500) from exc
+        raise AppError("No podes eliminarte a vos mismo", "CANNOT_DELETE_SELF", 400)
+    eliminado = await admin_repository.eliminar_usuario_cascade(id)
+    if not eliminado:
+        raise AppError("Usuario no encontrado", "USER_NOT_FOUND", 404)
+    log.info("Admin: usuario %s eliminado con cascada", id)
+    return True

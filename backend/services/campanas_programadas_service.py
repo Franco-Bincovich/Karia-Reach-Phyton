@@ -20,24 +20,30 @@ log = get_logger(__name__)
 
 async def _validar_template(template_id: str, usuario_id: str) -> None:
     """Verifica que el template exista y pertenezca al usuario."""
-    async with get_pool().acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM templates WHERE id = $1 AND usuario_id = $2 LIMIT 1",
-            uuid.UUID(template_id),
-            uuid.UUID(usuario_id),
-        )
+    try:
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM templates WHERE id = $1 AND usuario_id = $2 LIMIT 1",
+                uuid.UUID(template_id),
+                uuid.UUID(usuario_id),
+            )
+    except Exception as e:
+        raise AppError(f"Error validando datos: {str(e)}", "VALIDATION_DB_ERROR", 500)
     if not row:
         raise AppError("Template no encontrado", "TEMPLATE_NOT_FOUND", 404)
 
 
 async def _validar_contactos(contact_ids: list[str], usuario_id: str) -> None:
     """Verifica que TODOS los contactos existan y pertenezcan al usuario."""
-    async with get_pool().acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id FROM contacts WHERE id = ANY($1::uuid[]) AND usuario_id = $2",
-            [uuid.UUID(cid) for cid in contact_ids],
-            uuid.UUID(usuario_id),
-        )
+    try:
+        async with get_pool().acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id FROM contacts WHERE id = ANY($1::uuid[]) AND usuario_id = $2",
+                [uuid.UUID(cid) for cid in contact_ids],
+                uuid.UUID(usuario_id),
+            )
+    except Exception as e:
+        raise AppError(f"Error validando datos: {str(e)}", "VALIDATION_DB_ERROR", 500)
     if len(rows) != len(contact_ids):
         raise AppError("Ningun contacto encontrado", "CONTACTS_NOT_FOUND", 404)
 

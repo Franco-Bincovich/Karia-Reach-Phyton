@@ -1,5 +1,64 @@
 # KarIA Reach
 
+Plataforma de outreach comercial B2B potenciada por IA.
+
+## Requisitos
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 15+
+- Cuenta Google Cloud con OAuth2 configurado
+- API key de Anthropic
+
+## Instalación
+
+### Backend
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+cp .env.example .env      # Completar con credenciales reales
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+```
+
+## Migraciones de base de datos
+Ejecutar como superusuario PostgreSQL en orden:
+```bash
+psql -U postgres -d karia_reach -f backend/migrations/001_initial_schema.sql
+psql -U postgres -d karia_reach -f backend/migrations/002_gmail_integrations.sql
+psql -U postgres -d karia_reach -f backend/migrations/003_contact_source_scraping.sql
+psql -U postgres -d karia_reach -f backend/migrations/004_campanas_constraints.sql
+psql -U postgres -d karia_reach -f backend/migrations/005_metodos_habilitados.sql
+```
+
+## Cómo correr
+
+### Backend (puerto 3001)
+```bash
+cd backend
+.\venv\Scripts\activate
+uvicorn main:app --host 0.0.0.0 --port 3001 --reload
+```
+
+### Frontend (puerto 5173)
+```bash
+cd frontend
+npm run dev
+```
+
+> Vite hace proxy de /api y /track hacia http://localhost:3001 automáticamente.
+
+## Variables de entorno
+Ver `backend/.env.example` para la lista completa de variables requeridas.
+
+---
+
 **Plataforma de outreach comercial B2B potenciada por inteligencia artificial.**
 
 KarIA Reach automatiza el ciclo completo de prospección comercial: buscar contactos con IA, componer emails personalizados, enviar campañas masivas, trackear aperturas con pixel tracking y gestionar respuestas — todo desde una interfaz unificada.

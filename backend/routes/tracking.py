@@ -14,10 +14,11 @@ import hmac
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
 from logger import get_logger
+from middleware.rate_limiter import tracking_limit
 from repositories import tracking_repository
 from utils.security import generar_token_tracking
 
@@ -32,7 +33,9 @@ _PIXEL_GIF = base64.b64decode(
 
 
 @router.get("/open/{campaign_id}/{contact_id}")
+@tracking_limit
 async def registrar_apertura(
+    request: Request,
     campaign_id: UUID,
     contact_id: UUID,
     token: Optional[str] = Query(None),

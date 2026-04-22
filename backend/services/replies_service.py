@@ -54,8 +54,20 @@ async def sincronizar_respuestas_campana(
     return nuevas
 
 
-async def listar_respuestas(campaign_id: str) -> list[dict]:
-    """Lista todas las respuestas de una campana."""
+async def listar_respuestas(campaign_id: str, usuario_id: str = None) -> list[dict]:
+    """Lista todas las respuestas de una campana.
+
+    Args:
+        campaign_id: UUID de la campana.
+        usuario_id: UUID del usuario — si se provee, verifica que la campana le pertenezca.
+
+    Raises:
+        AppError: CAMPAIGN_NOT_FOUND (403) si la campana no pertenece al usuario.
+    """
+    if usuario_id:
+        permitido = await replies_repository.verificar_campana_usuario(campaign_id, usuario_id)
+        if not permitido:
+            raise AppError("Acceso denegado a esta campana", "CAMPAIGN_NOT_FOUND", 403)
     return await replies_repository.listar_por_campana(campaign_id)
 
 
@@ -84,8 +96,22 @@ async def responder(reply_id: str, cuerpo: str, usuario_id: str, rol: str) -> di
     return resultado
 
 
-async def marcar_leida(reply_id: str) -> bool:
-    """Marca una respuesta como leida."""
+async def marcar_leida(reply_id: str, usuario_id: str = None) -> bool:
+    """Marca una respuesta como leida.
+
+    Args:
+        reply_id: UUID de la respuesta.
+        usuario_id: UUID del usuario — si se provee, verifica que el reply pertenezca a su campana.
+
+    Raises:
+        AppError: REPLY_NOT_FOUND (404) si el reply no existe.
+        AppError: CAMPAIGN_NOT_FOUND (403) si el reply no pertenece al usuario.
+    """
+    if usuario_id:
+        reply = await replies_repository.obtener_por_id(reply_id)
+        permitido = await replies_repository.verificar_campana_usuario(reply["campaign_id"], usuario_id)
+        if not permitido:
+            raise AppError("Acceso denegado a esta respuesta", "CAMPAIGN_NOT_FOUND", 403)
     ok = await replies_repository.marcar_leida(reply_id)
     if not ok:
         raise AppError("Respuesta no encontrada", "REPLY_NOT_FOUND", 404)

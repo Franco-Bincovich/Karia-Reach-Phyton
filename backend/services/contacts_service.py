@@ -25,7 +25,16 @@ def _require_uid(usuario_id: str | None) -> str:
 
 
 async def filtrar_duplicados(contactos: list[dict], usuario_id: str = None) -> list[dict]:
-    """Filtra contactos cuyos emails ya existen en la base de datos. Reutilizable por otros services."""
+    """Filtra contactos cuyos emails ya existen en la base de datos.
+
+    Args:
+        contactos: lista de dicts con campos email_empresarial y/o email_personal.
+        usuario_id: UUID del usuario; si None filtra contra todos los emails de la DB.
+
+    Returns:
+        Subconjunto de contactos cuyos emails no están registrados. Si un contacto
+        no tiene ningún email, se incluye (no se puede determinar duplicado).
+    """
     emails_existentes = await contacts_repository.listar_emails(usuario_id)
     if not emails_existentes:
         return contactos
@@ -47,9 +56,17 @@ async def filtrar_duplicados(contactos: list[dict], usuario_id: str = None) -> l
 
 
 async def anotar_existencia(contactos: list[dict], usuario_id: str) -> list[dict]:
-    """
-    Marca cada contacto con ya_existe y contact_id_existente comparando contra la DB.
+    """Marca cada contacto con ya_existe y contact_id_existente comparando contra la DB.
+
     No filtra — solo anota. El frontend usa esto para mostrar el badge 'Ya en KarIA'.
+
+    Args:
+        contactos: lista de dicts de contactos a anotar.
+        usuario_id: UUID del usuario propietario.
+
+    Returns:
+        La misma lista con los campos ya_existe (bool) y contact_id_existente (str|None)
+        agregados a cada elemento.
     """
     email_a_id = await contacts_repository.listar_emails_con_ids(usuario_id)
     if not email_a_id:
@@ -71,17 +88,21 @@ async def buscar_con_ia(
     prompt_personalizado: str | None = None,
     usuario_id: str = None,
 ) -> list[dict]:
-    """
-    Busca contactos via IA y les asigna IDs temporales.
+    """Busca contactos via IA y les asigna IDs temporales.
 
     Args:
         rubro: industria o sector a buscar.
         ubicacion: zona geografica.
         cantidad: contactos a buscar (default 10).
         prompt_personalizado: filtro adicional del usuario (opcional).
+        usuario_id: UUID del usuario autenticado.
 
     Returns:
-        Lista de contactos con id temporal ai-{timestamp}-{index}.
+        Lista de contactos con id temporal ai-{timestamp}-{index} y campo ya_existe anotado.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: CLAUDE_API_ERROR (502) si la llamada a Claude falla.
     """
     _require_uid(usuario_id)
     resultados = await claude_client.buscar_contactos(rubro, ubicacion, cantidad, prompt_personalizado)
@@ -97,9 +118,20 @@ async def buscar_con_ia(
 
 
 async def guardar_seleccion(contactos: list[dict], usuario_id: str = None) -> list[dict]:
-    """
-    Guarda una seleccion de contactos. Si el contacto ya existe (por email),
-    hace merge de los campos vacios en lugar de crear un duplicado.
+    """Guarda una seleccion de contactos; hace merge si el email ya existe.
+
+    Args:
+        contactos: lista de dicts con datos de contacto. Se limpian internamente
+            los campos ya_existe, contact_id_existente e id antes de persistir.
+        usuario_id: UUID del usuario propietario.
+
+    Returns:
+        Lista de contactos persistidos (nuevos + actualizados por merge).
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: CONTACTS_LIMIT_EXCEEDED (400) si len(contactos) > 50.
+        AppError: DB_CONTACTS_CREATE (500) si falla la insercion bulk.
     """
     _require_uid(usuario_id)
     if len(contactos) > _MAX_SELECCION:
@@ -138,14 +170,18 @@ async def guardar_seleccion(contactos: list[dict], usuario_id: str = None) -> li
 
 
 async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
-    """
-    Agrega un contacto ingresado manualmente.
+    """Agrega un contacto ingresado manualmente con confianza 1.0.
 
     Args:
-        contacto: dict con datos del contacto.
+        contacto: dict con datos del contacto (nombre, empresa, emails, etc.).
+        usuario_id: UUID del usuario propietario.
 
     Returns:
-        Contacto creado con id y timestamps.
+        Contacto creado con id y timestamps asignados por la DB.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: DB_CONTACTS_CREATE (500) si falla la insercion.
     """
     _require_uid(usuario_id)
     contacto["confianza"] = 1.0
@@ -156,22 +192,38 @@ async def agregar_manual(contacto: dict, usuario_id: str = None) -> dict:
 
 
 async def listar(usuario_id: str = None) -> list[dict]:
-    """Devuelve todos los contactos."""
+    """Devuelve todos los contactos del usuario.
+
+    Args:
+        usuario_id: UUID del usuario propietario.
+
+    Returns:
+        Lista de dicts con todos los campos de cada contacto, ordenados por created_at DESC.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+    """
     _require_uid(usuario_id)
     return await contacts_repository.listar(usuario_id)
 
 
 async def enriquecer_contacto(contact_id: str, metodo: str, usuario_id: str) -> dict:
-    """
-    Enriquece un contacto existente via el metodo especificado.
+    """Enriquece un contacto existente via el metodo especificado.
 
     Args:
         contact_id: UUID del contacto a enriquecer.
-        metodo: 'claude' | 'perplexity' | 'apollo'.
-        usuario_id: ID del propietario.
+        metodo: estrategia de enriquecimiento — 'claude' | 'perplexity' | 'apollo'.
+        usuario_id: UUID del propietario del contacto.
 
     Returns:
-        Contacto actualizado con los nuevos campos.
+        Contacto actualizado con los nuevos campos mergeados.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: CONTACT_NOT_FOUND (404) si el contacto no pertenece al usuario.
+        AppError: APOLLO_NOT_CONFIGURED (400) si metodo='apollo' y no hay API key.
+        AppError: PERPLEXITY_NOT_CONFIGURED (400) si metodo='perplexity' y no hay API key.
+        AppError: CLAUDE_API_ERROR (502) si la llamada a Claude falla.
     """
     _require_uid(usuario_id)
     # Importes locales para evitar circular imports (apollo_service importa contacts_service)
@@ -220,20 +272,20 @@ async def enriquecer_contacto(contact_id: str, metodo: str, usuario_id: str) -> 
     return actualizado
 
 
-async def eliminar(id: str) -> bool:
-    """
-    Elimina un contacto por id.
+async def eliminar(id: str, usuario_id: str = None) -> bool:
+    """Elimina un contacto por id.
 
     Args:
-        id: UUID del contacto.
+        id: UUID del contacto a eliminar.
+        usuario_id: UUID del usuario — si se provee, solo elimina si el contacto le pertenece.
 
     Returns:
-        True si se elimino.
+        True si el contacto fue eliminado.
 
     Raises:
-        AppError: si el contacto no existe.
+        AppError: CONTACT_NOT_FOUND (404) si el id no existe o no pertenece al usuario.
     """
-    eliminado = await contacts_repository.eliminar(id)
+    eliminado = await contacts_repository.eliminar(id, usuario_id)
     if not eliminado:
         raise AppError("Contacto no encontrado", "CONTACT_NOT_FOUND", 404)
     return True

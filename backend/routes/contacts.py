@@ -9,6 +9,7 @@ Endpoints:
   DELETE /api/contacts/{id}
 """
 
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
@@ -70,9 +71,15 @@ class ManualContactRequest(ContactoBase):
     pass
 
 
+class MetodoEnriquecimiento(str, Enum):
+    claude = "claude"
+    apollo = "apollo"
+    perplexity = "perplexity"
+
+
 class EnrichRequest(BaseModel):
     """Parametros de enriquecimiento de un contacto existente."""
-    metodo: str = Field("claude", description="Metodo: claude | perplexity | apollo")
+    metodo: MetodoEnriquecimiento = MetodoEnriquecimiento.claude
 
 
 # --- Endpoints ---
@@ -97,10 +104,9 @@ async def guardar_seleccion(request: Request) -> dict:
     """Guarda una seleccion de contactos en la base de datos."""
     uid = get_usuario_id_from_request(request)
     raw = await request.json()
-    log.info("Body recibido en save-selection: %s", raw)
     body = SaveSelectionRequest(**raw)
     contactos = [c.model_dump() for c in body.contactos]
-    log.info("Primer contacto post-Pydantic: %s", contactos[0] if contactos else "vacío")
+    log.info("save-selection: %d contactos recibidos", len(contactos))
     return await contacts_controller.guardar_seleccion(contactos, uid)
 
 
@@ -119,6 +125,7 @@ async def enriquecer(request: Request, contact_id: UUID, body: EnrichRequest) ->
 
 
 @router.delete("/{contact_id}")
-async def eliminar(contact_id: UUID) -> dict:
+async def eliminar(request: Request, contact_id: UUID) -> dict:
     """Elimina un contacto por UUID."""
-    return await contacts_controller.eliminar(str(contact_id))
+    uid = get_usuario_id_from_request(request)
+    return await contacts_controller.eliminar(str(contact_id), uid)

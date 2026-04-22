@@ -10,7 +10,6 @@ Usa asyncpg directamente contra el pool de Postgres local.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -19,6 +18,7 @@ from config.settings import get_settings
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -52,17 +52,6 @@ def _descifrar(valor: str) -> str:
         # guardadas con la key anterior necesitan re-guardarse con la nueva.
         log.warning("No se pudo descifrar valor, puede estar en texto plano")
         return valor
-
-
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-    return row
 
 
 async def guardar_api_key(servicio: str, api_key: str, usuario_id: str = None) -> dict:

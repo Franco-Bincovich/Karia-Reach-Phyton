@@ -42,7 +42,7 @@ async def enriquecer_contacto(contact_id: str, metodo: str, usuario_id: str = No
     return {"data": actualizado}
 
 
-async def eliminar(id: str) -> dict:
+async def eliminar(id: str, usuario_id: str = None) -> dict:
     """Elimina un contacto por id."""
-    await contacts_service.eliminar(id)
+    await contacts_service.eliminar(id, usuario_id)
     return {"deleted": True}

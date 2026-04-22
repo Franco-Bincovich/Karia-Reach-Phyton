@@ -18,9 +18,8 @@ api.interceptors.response.use(
   (err) => {
     // Si el token expiro, limpiar sesion para forzar re-login
     if (err.response?.status === 401) {
-      sessionStorage.removeItem('karia_token')
-      sessionStorage.removeItem('karia_user')
-      window.location.reload()
+      sessionStorage.clear()
+      window.location.href = '/login'
     }
     const msg = err.response?.data?.message || err.message || 'Error de conexion'
     return Promise.reject(new Error(msg))

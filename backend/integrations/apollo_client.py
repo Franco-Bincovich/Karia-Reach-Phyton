@@ -80,12 +80,9 @@ async def _enriquecer_post_busqueda(
             )
             log.info("bulk_match response status: %d", resp.status_code)
             if resp.status_code != 200:
-                log.error("bulk_match error %d: %s", resp.status_code, resp.text[:300])
-            else:
-                log.info("bulk_match response body: %s", resp.text[:500])
+                log.error("bulk_match error status %d", resp.status_code)
             resp.raise_for_status()
             matches = resp.json().get("matches", [])
-            log.info("Primer match de bulk_match: %s", str(matches[0]) if matches else "vacío")
     except Exception as exc:
         log.warning("Error en enriquecimiento post-busqueda: %s", exc)
         return contactos
@@ -119,11 +116,6 @@ async def _enriquecer_post_busqueda(
         if actualizado:
             enriquecidos += 1
     log.info("Enriquecimiento post-busqueda: %d/%d contactos", enriquecidos, len(details))
-    if contactos:
-        log.info("Primer contacto después del merge: nombre=%s linkedin=%s email=%s",
-            contactos[0].get("nombre"),
-            contactos[0].get("linkedin_url"),
-            contactos[0].get("email_empresarial"))
     return contactos
 
 
@@ -145,20 +137,23 @@ async def buscar_personas(
     tamano_empresa: str | None = None,
     solo_email_verificado: bool = False,
 ) -> list[dict]:
-    """
-    Busca contactos en Apollo via mixed_people search.
+    """Busca contactos en Apollo via mixed_people search con enriquecimiento posterior.
 
     Args:
-        rubro: titulo o rol a buscar (ej. "CEO", "Director Comercial").
-        ubicacion: ubicacion geografica.
-        cantidad: cantidad de resultados (max 100).
-        api_key: API key de Apollo.
-        cargo: titulo especifico adicional (opcional).
-        tamano_empresa: 'micro' | 'pequena' | 'mediana' | 'grande' | 'enterprise' (opcional).
-        solo_email_verificado: si True filtra solo contactos con email verificado.
+        rubro: título o rol a buscar (ej. "CEO", "Director Comercial").
+        ubicacion: ubicación geográfica (informativa; la búsqueda filtra por Argentina).
+        cantidad: cantidad de resultados deseados (max 100).
+        api_key: API key de Apollo del usuario.
+        cargo: título adicional para ampliar la búsqueda (opcional).
+        tamano_empresa: filtro por tamaño — 'micro' | 'pequena' | 'mediana' | 'grande' | 'enterprise' (opcional).
+        solo_email_verificado: si True filtra solo contactos con email verificado por Apollo.
 
     Returns:
-        Lista de contactos mapeados a nuestro schema.
+        Lista de dicts mapeados a nuestro schema de contacto, enriquecidos con bulk_match.
+
+    Raises:
+        AppError: APOLLO_SEARCH_ERROR (502) si Apollo responde con HTTP error.
+        AppError: APOLLO_CONNECTION_ERROR (502) si no se puede conectar con Apollo.
     """
     titulos = [rubro]
     if cargo and cargo.strip() and cargo.strip().lower() != rubro.strip().lower():
@@ -182,7 +177,6 @@ async def buscar_personas(
             )
             resp.raise_for_status()
             personas = resp.json().get("people", [])
-            log.info("Primer contacto raw de Apollo: %s", personas[0] if personas else "vacío")
             log.info("Apollo busqueda: %d resultados para '%s' en '%s'", len(personas), rubro, ubicacion)
             contactos = [_mapear_persona(p) for p in personas]
             for c in contactos:
@@ -191,7 +185,7 @@ async def buscar_personas(
             contactos = await _enriquecer_post_busqueda(contactos, api_key)
             return contactos
     except httpx.HTTPStatusError as exc:
-        log.error("Apollo API error %s: %s", exc.response.status_code, exc.response.text[:200])
+        log.error("Apollo API error status %s", exc.response.status_code)
         raise AppError("Error en busqueda Apollo", "APOLLO_SEARCH_ERROR", 502) from exc
     except Exception as exc:
         log.error("Error en busqueda Apollo: %s", exc)
@@ -199,7 +193,17 @@ async def buscar_personas(
 
 
 async def enriquecer_contacto(nombre: str, empresa: str, api_key: str) -> dict:
-    """Enriquece un contacto individual via Apollo people/match."""
+    """Enriquece un contacto individual via Apollo people/match.
+
+    Args:
+        nombre: nombre completo del contacto.
+        empresa: nombre de la empresa del contacto.
+        api_key: API key de Apollo del usuario.
+
+    Returns:
+        Dict con datos del contacto mapeados a nuestro schema.
+        Si Apollo no encuentra match, devuelve dict mínimo con confianza=0.0.
+    """
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(
@@ -218,10 +222,15 @@ async def enriquecer_contacto(nombre: str, empresa: str, api_key: str) -> dict:
 
 
 async def enriquecer_bulk(contactos: list[dict], api_key: str) -> list[dict]:
-    """
-    Enriquece multiples contactos via Apollo bulk_match.
+    """Enriquece múltiples contactos via Apollo bulk_match.
 
-    Fallo individual no detiene el lote — retorna datos originales con confianza=0.
+    Args:
+        contactos: lista de dicts con al menos nombre y empresa.
+        api_key: API key de Apollo del usuario.
+
+    Returns:
+        Lista de dicts enriquecidos en el mismo orden que la entrada.
+        Contactos sin match en Apollo se devuelven con confianza=0.0.
     """
     try:
         details = [{"name": c.get("nombre", ""), "organization_name": c.get("empresa", "")}

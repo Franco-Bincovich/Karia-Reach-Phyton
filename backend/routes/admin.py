@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from controllers import admin_controller
 from middleware.auth import get_rol_from_request, get_usuario_id_from_request
 from middleware.error_handler import AppError
+from utils.db import METODOS_BUSQUEDA_VALIDOS
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -32,9 +33,6 @@ class CrearUsuarioRequest(BaseModel):
     password: str = Field(..., min_length=8, description="Mínimo 8 caracteres")
     nombre: str = Field(..., min_length=2)
     rol: str = Field("user", pattern="^(user|superadmin)$")
-
-
-_METODOS_VALIDOS = {"claude_ai", "apollo", "perplexity", "apify", "scraping_web", "carga_manual"}
 
 
 class EditUsuarioRequest(BaseModel):
@@ -79,7 +77,7 @@ async def editar_usuario(request: Request, id: str, body: EditUsuarioRequest) ->
     _require_superadmin(request)
     datos = body.model_dump(exclude_none=True)
     if "metodos_habilitados" in datos:
-        invalidos = set(datos["metodos_habilitados"]) - _METODOS_VALIDOS
+        invalidos = set(datos["metodos_habilitados"]) - METODOS_BUSQUEDA_VALIDOS
         if invalidos:
             raise AppError(f"Métodos inválidos: {invalidos}", "INVALID_METODOS", 400)
     return await admin_controller.editar_usuario(id, datos)

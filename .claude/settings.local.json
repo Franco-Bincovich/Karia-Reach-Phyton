@@ -16,7 +16,11 @@
       "Bash(PGPASSWORD='paltron261103' \"/c/Program Files/PostgreSQL/16/bin/psql\" -h localhost -p 5432 -U karia_reach_user -d karia_reach -c \"\\\\du\")",
       "Bash(PGPASSWORD=paltron261103 psql *)",
       "Bash(python -c ' *)",
-      "Bash(venv/Scripts/python -c ' *)"
+      "Bash(venv/Scripts/python -c ' *)",
+      "Bash(mv \"002_contact_source_scraping.sql\" \"003_contact_source_scraping.sql\")",
+      "Bash(mv \"003_campanas_constraints.sql\" \"004_campanas_constraints.sql\")",
+      "Bash(mv \"004_metodos_habilitados.sql\" \"005_metodos_habilitados.sql\")",
+      "Read(//c/c/Users/Franco Bincovich/Desktop/Visual Code/Karia-Reach-Phyton/backend/**)"
     ]
   }
 }

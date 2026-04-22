@@ -26,9 +26,10 @@ class RespondRequest(BaseModel):
 
 
 @router.get("/{campaign_id}")
-async def listar_respuestas(campaign_id: UUID) -> dict:
+async def listar_respuestas(request: Request, campaign_id: UUID) -> dict:
     """Lista todas las respuestas de una campana."""
-    return await replies_controller.listar_respuestas(str(campaign_id))
+    uid = get_usuario_id_from_request(request)
+    return await replies_controller.listar_respuestas(str(campaign_id), uid)
 
 
 @router.post("/{campaign_id}/sync")
@@ -49,6 +50,7 @@ async def responder(request: Request, reply_id: UUID, body: RespondRequest) -> d
 
 
 @router.patch("/{reply_id}/read")
-async def marcar_leida(reply_id: UUID) -> dict:
+async def marcar_leida(request: Request, reply_id: UUID) -> dict:
     """Marca una respuesta como leida."""
-    return await replies_controller.marcar_leida(str(reply_id))
+    uid = get_usuario_id_from_request(request)
+    return await replies_controller.marcar_leida(str(reply_id), uid)

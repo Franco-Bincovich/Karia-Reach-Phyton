@@ -94,7 +94,28 @@ async def enviar_campana(
     nombre: str, template_id: str, contact_ids: list[str],
     scheduled_at: Optional[str] = None, usuario_id: str = None, rol: str = "user",
 ) -> dict:
-    """Crea y ejecuta una campana de email."""
+    """Crea y ejecuta una campaña de email via Gmail OAuth.
+
+    Args:
+        nombre: nombre descriptivo de la campaña.
+        template_id: UUID del template a usar.
+        contact_ids: lista de UUIDs de contactos destinatarios.
+        scheduled_at: ISO datetime de envío programado (opcional, no usado en envío inmediato).
+        usuario_id: UUID del usuario propietario.
+        rol: rol del usuario ('user' o 'superadmin') para resolver credenciales Gmail.
+
+    Returns:
+        Dict con todos los campos de la campaña creada, incluyendo sent_count,
+        failed_count, status='completed' y sent_at.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: TEMPLATE_NOT_FOUND (404) si template_id no existe o no pertenece al usuario.
+        AppError: CONTACTS_NOT_FOUND (404) si ningún contact_id existe.
+        AppError: CONTACTS_FORBIDDEN (403) si algún contact_id no pertenece al usuario.
+        AppError: GMAIL_NOT_CONFIGURED (400) si no hay credenciales OAuth válidas.
+    """
+    log.info("AUDIT enviar_campana usuario=%s contactos=%d template=%s", usuario_id, len(contact_ids), template_id)
     _require_uid(usuario_id)
     templates = await templates_repository.listar(usuario_id)
     template = next((t for t in templates if t["id"] == template_id), None)
@@ -128,13 +149,33 @@ async def enviar_campana(
 
 
 async def listar_campanas(usuario_id: str = None) -> list[dict]:
-    """Devuelve todas las campanas."""
+    """Devuelve todas las campañas del usuario.
+
+    Args:
+        usuario_id: UUID del usuario propietario.
+
+    Returns:
+        Lista de dicts con todos los campos de cada campaña, ordenadas por created_at DESC.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+    """
     _require_uid(usuario_id)
     return await campaigns_repository.listar(usuario_id)
 
 
 async def obtener_dashboard(usuario_id: str = None) -> dict:
-    """Resumen general con queries COUNT."""
+    """Devuelve resumen de métricas del usuario para el dashboard.
+
+    Args:
+        usuario_id: UUID del usuario propietario.
+
+    Returns:
+        Dict con contactos, templates, campanas y emails_enviados (todos int).
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+    """
     _require_uid(usuario_id)
     return {"contactos": await contacts_repository.contar(usuario_id),
             "templates": await templates_repository.contar(usuario_id),
@@ -142,9 +183,35 @@ async def obtener_dashboard(usuario_id: str = None) -> dict:
             "emails_enviados": await campaigns_repository.sumar_enviados(usuario_id)}
 
 async def obtener_estadisticas_campana(campaign_id: str, usuario_id: str = None) -> dict:
+    """Devuelve estadísticas detalladas de una campaña específica.
+
+    Args:
+        campaign_id: UUID de la campaña.
+        usuario_id: UUID del usuario propietario (solo para validar auth).
+
+    Returns:
+        Dict con campana, total_enviados, total_fallidos, total_abiertos,
+        total_sin_abrir, total_respondidos, tasa_apertura, tasa_fallo y resultados.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+        AppError: CAMPAIGN_NOT_FOUND (404) si campaign_id no existe.
+    """
     _require_uid(usuario_id)
     return await campaigns_repository.obtener_estadisticas_campana(campaign_id)
 
 async def obtener_estadisticas_globales(usuario_id: str = None) -> dict:
+    """Devuelve estadísticas agregadas de todas las campañas del sistema.
+
+    Args:
+        usuario_id: UUID del usuario (solo para validar auth).
+
+    Returns:
+        Dict con total_campanas, total_emails_enviados, total_emails_fallidos,
+        total_aperturas, total_respondidos y tasa_apertura_global.
+
+    Raises:
+        AppError: AUTH_REQUIRED (401) si usuario_id es None.
+    """
     _require_uid(usuario_id)
     return await campaigns_repository.obtener_estadisticas_globales()

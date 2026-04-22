@@ -14,6 +14,7 @@ from datetime import datetime, time as time_type
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 
 log = get_logger(__name__)
 _TABLE = "campanas_programadas"
@@ -25,25 +26,6 @@ _COLUMNAS_PROG = frozenset({
 _COLUMNAS_JSONB = frozenset({"contact_ids", "dias_semana"})
 _COLUMNAS_UUID = frozenset({"template_id", "bloque_id", "usuario_id"})
 _COLUMNAS_TIMESTAMPS = frozenset({"fecha_envio", "ultima_ejecucion"})
-
-
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-        elif key in _COLUMNAS_JSONB:
-            if isinstance(val, str):
-                try:
-                    row[key] = json.loads(val)
-                except (json.JSONDecodeError, ValueError):
-                    row[key] = []
-            elif val is None:
-                row[key] = []
-    return row
 
 
 def _coerce_timestamp(col: str, val):

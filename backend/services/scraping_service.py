@@ -7,7 +7,9 @@ en contactos con formato estandar.
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
 import unicodedata
 from urllib.parse import urlparse
 
@@ -62,6 +64,15 @@ async def guardar_preferencias(usuario_id: str, preferencias: dict) -> None:
     await integrations_repository.guardar_api_key(_SERVICIO, json.dumps(merged), usuario_id)
 
 
+def _es_ip_privada(ip_str: str) -> bool:
+    """True si la IP cae en un rango privado, reservado o de loopback."""
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified
+    except ValueError:
+        return True
+
+
 def _calcular_confianza(email: str) -> float:
     """0.9 si el local-part contiene palabra clave institucional; 0.5 si no."""
     local = "".join(c for c in unicodedata.normalize("NFD", email.split("@")[0].lower()) if unicodedata.category(c) != "Mn")
@@ -69,15 +80,17 @@ def _calcular_confianza(email: str) -> float:
 
 
 def _es_url_valida(url: str) -> bool:
-    """
-    Valida que la URL no sea una red social ni dominio personal bloqueado.
-
-    Returns:
-        True si la URL es apta para scrapear.
-    """
+    """Valida URL: no es red social y no apunta a una IP privada o reservada."""
     try:
-        netloc = urlparse(url).netloc.lower().removeprefix("www.")
-        return not any(bloq in netloc for bloq in _DOMINIOS_BLOQUEADOS)
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower().removeprefix("www.")
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        if any(bloq in netloc for bloq in _DOMINIOS_BLOQUEADOS):
+            return False
+        ip = socket.gethostbyname(hostname)
+        return not _es_ip_privada(ip)
     except Exception:
         return False
 

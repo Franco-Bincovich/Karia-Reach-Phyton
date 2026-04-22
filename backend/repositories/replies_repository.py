@@ -9,12 +9,12 @@ Usa asyncpg directamente contra el pool de Postgres local.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Optional
 
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 
 log = get_logger(__name__)
 
@@ -26,17 +26,6 @@ _COLUMNAS_REPLIES = frozenset({
 })
 
 _COLUMNAS_TIMESTAMPS = frozenset({"fecha"})
-
-
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-    return row
 
 
 def _coerce_timestamp(col: str, val):
@@ -72,6 +61,29 @@ async def guardar_respuesta(reply: dict) -> dict:
     except Exception as exc:
         log.error("Error guardando respuesta: %s", exc)
         raise AppError("Error al guardar respuesta", "DB_REPLIES_CREATE", 500) from exc
+
+
+async def verificar_campana_usuario(campaign_id: str, usuario_id: str) -> bool:
+    """Verifica que una campana pertenezca al usuario dado.
+
+    Args:
+        campaign_id: UUID de la campana.
+        usuario_id: UUID del usuario que realiza la operacion.
+
+    Returns:
+        True si la campana pertenece al usuario.
+    """
+    try:
+        async with get_pool().acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM campaigns WHERE id = $1 AND usuario_id = $2 LIMIT 1",
+                uuid.UUID(campaign_id),
+                uuid.UUID(usuario_id),
+            )
+        return row is not None
+    except Exception as exc:
+        log.error("Error verificando ownership campana %s: %s", campaign_id, exc)
+        return False
 
 
 async def listar_por_campana(campaign_id: str) -> list[dict]:

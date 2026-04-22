@@ -8,37 +8,17 @@ Usa asyncpg directamente contra el pool de Postgres local.
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime
 
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 
 log = get_logger(__name__)
 
 _TABLE = "bloques"
 _TABLE_REL = "bloques_contactos"
-
-
-def _record_to_dict(record) -> dict:
-    """Convierte un Record de asyncpg a dict con tipos Python normalizados."""
-    row = dict(record)
-    for key, val in list(row.items()):
-        if isinstance(val, uuid.UUID):
-            row[key] = str(val)
-        elif isinstance(val, datetime):
-            row[key] = val.isoformat()
-        elif key == "enrichment_sources":
-            if isinstance(val, str):
-                try:
-                    row[key] = json.loads(val)
-                except (json.JSONDecodeError, ValueError):
-                    row[key] = []
-            elif val is None:
-                row[key] = []
-    return row
 
 
 async def listar(usuario_id: str = None) -> list[dict]:

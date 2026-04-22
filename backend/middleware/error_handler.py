@@ -34,7 +34,10 @@ class AppError(Exception):
 
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
     """Handler para errores AppError controlados."""
-    log.error("AppError [%s] %s", exc.code, exc.message)
+    if exc.status_code < 500:
+        log.warning("AppError [%s] %s", exc.code, exc.message)
+    else:
+        log.error("AppError [%s] %s", exc.code, exc.message)
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": True, "message": exc.message, "code": exc.code},
