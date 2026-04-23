@@ -49,11 +49,11 @@ class Objetivo(str, Enum):
 
 class GenerateRequest(BaseModel):
     """Parametros para generacion de variantes."""
-    descripcion: str = Field(..., min_length=10, description="Producto o servicio")
+    descripcion: str = Field(..., min_length=10, max_length=2000, description="Producto o servicio")
     tono: Tono
     objetivo: Objetivo
     variantes: int = Field(3, ge=1, le=5)
-    instruccion_adicional: Optional[str] = Field(None, description="Instruccion libre opcional")
+    instruccion_adicional: Optional[str] = Field(None, max_length=500, description="Instruccion libre opcional")
 
 
 class ContactoInput(BaseModel):
@@ -67,22 +67,22 @@ class ContactoInput(BaseModel):
 class GenerateFromContactsRequest(BaseModel):
     """Parametros para composicion desde contactos."""
     contactos: List[ContactoInput] = Field(..., min_length=1)
-    producto: str = Field(..., min_length=5)
+    producto: str = Field(..., min_length=5, max_length=2000)
     modo: str = Field("formal", pattern="^(formal|casual|directo)$")
 
 
 class FormatManualRequest(BaseModel):
     """Parametros para formateo manual de email."""
-    asunto: str = Field(..., min_length=5, description="Asunto del email")
-    cuerpo_natural: str = Field(..., min_length=10, description="Texto en lenguaje natural")
+    asunto: str = Field(..., min_length=5, max_length=200, description="Asunto del email")
+    cuerpo_natural: str = Field(..., min_length=10, max_length=3000, description="Texto en lenguaje natural")
     nombre_campana: str = Field(..., min_length=2, description="Nombre de la campana")
 
 
 class TemplateRequest(BaseModel):
     """Datos para crear un template."""
-    nombre: str = Field(..., min_length=2)
-    asunto: str = Field(..., min_length=5)
-    cuerpo: str = Field(..., min_length=10)
+    nombre: str = Field(..., min_length=2, max_length=200)
+    asunto: str = Field(..., min_length=5, max_length=200)
+    cuerpo: str = Field(..., min_length=10, max_length=50000)
     tono: str = ""
     objetivo: str = ""
 
@@ -129,6 +129,7 @@ async def guardar_template(request: Request, body: TemplateRequest) -> dict:
 
 
 @router.delete("/templates/{template_id}")
-async def eliminar_template(template_id: UUID) -> dict:
+async def eliminar_template(template_id: UUID, request: Request) -> dict:
     """Elimina un template por UUID."""
-    return await compose_controller.eliminar_template(str(template_id))
+    uid = get_usuario_id_from_request(request)
+    return await compose_controller.eliminar_template(str(template_id), uid)

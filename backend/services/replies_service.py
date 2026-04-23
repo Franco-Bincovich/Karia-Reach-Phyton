@@ -22,6 +22,10 @@ async def sincronizar_respuestas_campana(
     Obtiene message_ids de los resultados exitosos, busca respuestas
     en Gmail y guarda las nuevas evitando duplicados por message_id.
     """
+    permitido = await replies_repository.verificar_campana_usuario(campaign_id, usuario_id)
+    if not permitido:
+        raise AppError("Acceso denegado a esta campana", "CAMPAIGN_NOT_FOUND", 403)
+
     resultados = await campaigns_repository.listar_resultados(campaign_id)
     message_ids = [r["message_id"] for r in resultados if r.get("message_id")]
     if not message_ids:
@@ -79,6 +83,9 @@ async def responder(reply_id: str, cuerpo: str, usuario_id: str, rol: str) -> di
     original y marca la respuesta como respondida.
     """
     reply = await replies_repository.obtener_por_id(reply_id)
+    permitido = await replies_repository.verificar_campana_usuario(reply["campaign_id"], usuario_id)
+    if not permitido:
+        raise AppError("Acceso denegado a esta respuesta", "CAMPAIGN_NOT_FOUND", 403)
     asunto_original = reply.get("asunto", "")
     asunto = asunto_original if asunto_original.startswith("Re:") else f"Re: {asunto_original}"
 

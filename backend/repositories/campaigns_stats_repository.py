@@ -8,8 +8,9 @@ import uuid
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import record_to_dict
 from .campaigns_crud_repository import (
-    _record_to_dict, _coerce_timestamp, _COLUMNAS_RESULTS, listar,
+    _coerce_timestamp, _COLUMNAS_RESULTS, listar,
 )
 
 log = get_logger(__name__)
@@ -29,37 +30,41 @@ async def crear_resultado(resultado: dict) -> dict:
         query = f"INSERT INTO campaign_results ({', '.join(cols)}) VALUES ({', '.join(placeholders)}) RETURNING *"
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error creando resultado de campana: %s", exc)
         raise AppError("Error al registrar resultado", "DB_RESULTS_CREATE", 500) from exc
 
 
-async def listar_resultados(campana_id: str) -> list[dict]:
-    """Lista resultados de envio de una campana."""
+async def listar_resultados(campana_id: str, usuario_id: str) -> list[dict]:
+    """Lista resultados de envio de una campana, filtrados por propiedad del usuario."""
     try:
         async with get_pool().acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM campaign_results WHERE campaign_id = $1 ORDER BY enviado_at DESC",
-                uuid.UUID(campana_id),
+                """SELECT cr.* FROM campaign_results cr
+                   JOIN campaigns c ON c.id = cr.campaign_id
+                   WHERE cr.campaign_id = $1 AND c.usuario_id = $2
+                   ORDER BY cr.enviado_at DESC""",
+                uuid.UUID(campana_id), uuid.UUID(usuario_id),
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando resultados de campana %s: %s", campana_id, exc)
         raise AppError("Error al listar resultados", "DB_RESULTS_LIST", 500) from exc
 
 
-async def obtener_estadisticas_campana(campaign_id: str) -> dict:
+async def obtener_estadisticas_campana(campaign_id: str, usuario_id: str) -> dict:
     """Estadisticas detalladas: metricas + resultados individuales."""
     try:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM campaigns WHERE id = $1 LIMIT 1", uuid.UUID(campaign_id),
+                "SELECT * FROM campaigns WHERE id = $1 AND usuario_id = $2 LIMIT 1",
+                uuid.UUID(campaign_id), uuid.UUID(usuario_id),
             )
         if not row:
-            raise AppError("Campana no encontrada", "CAMPAIGN_NOT_FOUND", 404)
-        c = _record_to_dict(row)
-        resultados = await listar_resultados(campaign_id)
+            raise AppError("Acceso denegado a esta campana", "CAMPAIGN_NOT_FOUND", 403)
+        c = record_to_dict(row)
+        resultados = await listar_resultados(campaign_id, usuario_id)
 
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
@@ -94,13 +99,18 @@ async def obtener_estadisticas_campana(campaign_id: str) -> dict:
         raise AppError("Error al obtener estadisticas", "DB_CAMPAIGN_STATS", 500) from exc
 
 
-async def obtener_estadisticas_globales() -> dict:
-    """Estadisticas agregadas globales."""
+async def obtener_estadisticas_globales(usuario_id: str) -> dict:
+    """Estadisticas agregadas del usuario."""
     try:
-        campanas = await listar()
+        campanas = await listar(usuario_id)
         async with get_pool().acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM campaign_results")
-        resultados = [_record_to_dict(r) for r in rows]
+            rows = await conn.fetch(
+                """SELECT cr.* FROM campaign_results cr
+                   JOIN campaigns c ON c.id = cr.campaign_id
+                   WHERE c.usuario_id = $1""",
+                uuid.UUID(usuario_id),
+            )
+        resultados = [record_to_dict(r) for r in rows]
 
         enviados = sum(1 for r in resultados if r.get("exitoso"))
         fallidos = sum(1 for r in resultados if not r.get("exitoso"))
@@ -108,7 +118,12 @@ async def obtener_estadisticas_globales() -> dict:
         base = enviados
 
         async with get_pool().acquire() as conn:
-            respondidos = await conn.fetchval("SELECT COUNT(*) FROM email_replies")
+            respondidos = await conn.fetchval(
+                """SELECT COUNT(*) FROM email_replies er
+                   JOIN campaigns c ON c.id = er.campaign_id
+                   WHERE c.usuario_id = $1""",
+                uuid.UUID(usuario_id),
+            )
         respondidos = int(respondidos or 0)
 
         return {

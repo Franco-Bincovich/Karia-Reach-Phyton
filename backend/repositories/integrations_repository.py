@@ -80,7 +80,7 @@ async def guardar_api_key(servicio: str, api_key: str, usuario_id: str = None) -
                 uid,
             )
         log.info("API key guardada para %s (usuario=%s)", servicio, usuario_id)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error guardando API key de %s: %s", servicio, exc)
         raise AppError("Error al guardar API key", "DB_INTEGRATIONS_SAVE", 500) from exc

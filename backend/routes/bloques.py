@@ -52,30 +52,35 @@ async def crear(request: Request, body: CrearBloqueRequest) -> dict:
 
 
 @router.put("/{bloque_id}")
-async def actualizar(bloque_id: UUID, body: CrearBloqueRequest) -> dict:
+async def actualizar(bloque_id: UUID, request: Request, body: CrearBloqueRequest) -> dict:
     """Actualiza el nombre de un bloque."""
-    return await bloques_controller.actualizar(str(bloque_id), body.nombre)
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.actualizar(str(bloque_id), body.nombre, uid)
 
 
 @router.delete("/{bloque_id}")
-async def eliminar(bloque_id: UUID) -> dict:
+async def eliminar(bloque_id: UUID, request: Request) -> dict:
     """Elimina un bloque por UUID."""
-    return await bloques_controller.eliminar(str(bloque_id))
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.eliminar(str(bloque_id), uid)
 
 
 @router.post("/{bloque_id}/contactos")
-async def agregar_contactos(bloque_id: UUID, body: AgregarContactosRequest) -> dict:
+async def agregar_contactos(bloque_id: UUID, request: Request, body: AgregarContactosRequest) -> dict:
     """Agrega contactos a un bloque."""
-    return await bloques_controller.agregar_contactos(str(bloque_id), body.contacto_ids)
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.agregar_contactos(str(bloque_id), body.contacto_ids, uid)
 
 
 @router.get("/{bloque_id}/contactos")
-async def obtener_contactos(bloque_id: UUID) -> dict:
+async def obtener_contactos(bloque_id: UUID, request: Request) -> dict:
     """Devuelve los contactos de un bloque."""
-    return await bloques_controller.obtener_contactos(str(bloque_id))
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.obtener_contactos(str(bloque_id), uid)
 
 
 @router.delete("/{bloque_id}/contactos/{contacto_id}")
-async def eliminar_contacto(bloque_id: UUID, contacto_id: UUID) -> dict:
+async def eliminar_contacto(bloque_id: UUID, contacto_id: UUID, request: Request) -> dict:
     """Elimina un contacto de un bloque."""
-    return await bloques_controller.eliminar_contacto(str(bloque_id), str(contacto_id))
+    uid = get_usuario_id_from_request(request)
+    return await bloques_controller.eliminar_contacto(str(bloque_id), str(contacto_id), uid)

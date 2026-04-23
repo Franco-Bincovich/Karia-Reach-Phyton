@@ -4,6 +4,7 @@ Repositorio CRUD de campanas — acceso a `campaigns` y escritura de resultados 
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from integrations.postgres_client import get_pool
 from logger import get_logger
@@ -49,7 +50,7 @@ async def listar(usuario_id: str = None) -> list[dict]:
                 )
             else:
                 rows = await conn.fetch("SELECT * FROM campaigns ORDER BY created_at DESC")
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando campanas: %s", exc)
         raise AppError("Error al listar campanas", "DB_CAMPAIGNS_LIST", 500) from exc
@@ -103,7 +104,7 @@ async def crear(campana: dict) -> dict:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
         log.info("Campana creada: %s", campana.get("nombre"))
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error creando campana: %s", exc)
         raise AppError("Error al crear campana", "DB_CAMPAIGNS_CREATE", 500) from exc
@@ -119,7 +120,7 @@ async def actualizar_metricas(id: str, metricas: dict) -> dict:
             if not row:
                 raise AppError("Campana no encontrada", "DB_CAMPAIGNS_NOT_FOUND", 404)
             log.info("actualizar_metricas %s: dict vacio, nada que actualizar", id)
-            return _record_to_dict(row)
+            return record_to_dict(row)
         set_clauses, vals = [], []
         for i, (col, val) in enumerate(datos.items(), 1):
             set_clauses.append(f"{col} = ${i}::campaign_status" if col == "status" else f"{col} = ${i}")
@@ -133,7 +134,7 @@ async def actualizar_metricas(id: str, metricas: dict) -> dict:
         if not row:
             raise AppError("Campana no encontrada", "DB_CAMPAIGNS_NOT_FOUND", 404)
         log.info("Metricas actualizadas para campana %s", id)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except AppError:
         raise
     except Exception as exc:

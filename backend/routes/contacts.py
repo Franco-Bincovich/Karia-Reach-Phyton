@@ -33,20 +33,20 @@ class SearchAIRequest(BaseModel):
     rubro: str = Field("", description="Industria o sector")
     ubicacion: str = Field("", description="Zona geografica")
     cantidad: int = Field(10, ge=5, le=50, description="Cantidad de contactos")
-    prompt_personalizado: Optional[str] = Field(None, description="Filtro adicional del usuario")
+    prompt_personalizado: Optional[str] = Field(None, max_length=1000, description="Filtro adicional del usuario")
 
 
 class ContactoBase(BaseModel):
     """Datos base de un contacto."""
-    nombre: Optional[str] = None
-    empresa: str = Field(..., min_length=1)
-    cargo: Optional[str] = None
+    nombre: Optional[str] = Field(None, max_length=200)
+    empresa: str = Field(..., min_length=1, max_length=200)
+    cargo: Optional[str] = Field(None, max_length=200)
     email_empresarial: Optional[str] = None
     email_personal: Optional[str] = None
     telefono_empresa: Optional[str] = None
     telefono_personal: Optional[str] = None
-    linkedin_url: Optional[str] = None
-    rubro: Optional[str] = None
+    linkedin_url: Optional[str] = Field(None, max_length=500)
+    rubro: Optional[str] = Field(None, max_length=200)
     confianza: Optional[float] = Field(None, ge=0.0, le=1.0)
     origen: str = "ai"
 

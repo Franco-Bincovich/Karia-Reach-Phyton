@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  // Debe coincidir con METODOS_BUSQUEDA_VALIDOS en backend/utils/db.py
   const TODOS_METODOS = ['claude_ai', 'apollo', 'perplexity', 'apify', 'scraping_web', 'carga_manual']
   const metodos = (user?.metodos_habilitados?.length ? user.metodos_habilitados : TODOS_METODOS)
 

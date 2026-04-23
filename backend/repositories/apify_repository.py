@@ -15,31 +15,19 @@ log = get_logger(__name__)
 _EMAIL_FIELDS = frozenset({"email_empresarial", "email_personal"})
 
 
-async def obtener_contacto(contacto_id: str) -> dict:
-    """
-    Obtiene un contacto por UUID.
-
-    Args:
-        contacto_id: UUID del contacto.
-
-    Returns:
-        Dict con los datos del contacto.
-
-    Raises:
-        AppError: CONTACT_NOT_FOUND (404) si no existe.
-        AppError: DB_CONTACTS_GET (500) si falla la consulta.
-    """
+async def obtener_contacto(contacto_id: str, usuario_id: str) -> dict:
+    """Obtiene un contacto por UUID verificando propiedad del usuario."""
     try:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM contacts WHERE id = $1 LIMIT 1",
-                uuid.UUID(contacto_id),
+                "SELECT * FROM contacts WHERE id = $1 AND usuario_id = $2 LIMIT 1",
+                uuid.UUID(contacto_id), uuid.UUID(usuario_id),
             )
     except Exception as exc:
         raise AppError("Error al obtener contacto", "DB_CONTACTS_GET", 500) from exc
     if not row:
         raise AppError("Contacto no encontrado", "CONTACT_NOT_FOUND", 404)
-    return _record_to_dict(row)
+    return record_to_dict(row)
 
 
 async def verificar_email_duplicado(email_field: str, email_val: str, exclude_id: str) -> bool:
@@ -101,7 +89,7 @@ async def actualizar_contacto(contacto_id: str, update_data: dict) -> dict:
         )
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error actualizando contacto %s: %s", contacto_id, exc)
         raise AppError("Error al actualizar contacto", "DB_CONTACTS_UPDATE", 500) from exc

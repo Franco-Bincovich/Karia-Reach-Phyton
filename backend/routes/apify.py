@@ -40,7 +40,8 @@ class BuscarRequest(BaseModel):
 @router.post("/enriquecer-contacto")
 async def enriquecer_contacto(request: Request, body: EnriquecerRequest) -> dict:
     """Enriquece un contacto con el pipeline de 8 Actors de Apify."""
-    return await apify_controller.enriquecer_contacto(body.contacto_id)
+    uid = get_usuario_id_from_request(request)
+    return await apify_controller.enriquecer_contacto(body.contacto_id, uid)
 
 
 @router.post("/buscar")

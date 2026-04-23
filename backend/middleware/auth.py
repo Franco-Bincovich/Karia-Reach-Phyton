@@ -6,7 +6,6 @@ como JWT firmado con JWT_SECRET (para el frontend).
 """
 
 import hmac
-from typing import Optional
 
 import jwt
 from fastapi import Request, Response
@@ -15,6 +14,7 @@ from starlette.responses import JSONResponse
 
 from config.settings import get_settings
 from logger import get_logger
+from middleware.error_handler import AppError
 
 log = get_logger(__name__)
 
@@ -40,19 +40,16 @@ def get_rol_from_request(request: Request) -> str:
         return "user"
 
 
-def get_usuario_id_from_request(request: Request) -> Optional[str]:
-    """Extrae el usuario_id del JWT del request."""
-    settings = get_settings()
-    auth_header = request.headers.get("Authorization", "")
-    token = auth_header.removeprefix("Bearer ").strip()
-    if not token or not settings.JWT_SECRET:
-        return None
-    try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"],
-                             audience="karia-reach", issuer="karia-reach-backend")
-        return payload.get("usuario_id")
-    except jwt.PyJWTError:
-        return None
+def get_usuario_id_from_request(request: Request) -> str:
+    """Extrae el usuario_id del request.state (establecido por el middleware JWT).
+
+    Raises:
+        AppError: UNAUTHORIZED (401) si el request no tiene un JWT valido.
+    """
+    uid = getattr(request.state, "usuario_id", None)
+    if not uid:
+        raise AppError("No autorizado", "UNAUTHORIZED", 401)
+    return uid
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -68,7 +65,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         settings = get_settings()
         auth_header = request.headers.get("Authorization", "")
-        # DEBUG: loguear header recibido (truncado por seguridad)
         log.debug("AUTH header recibido: '%s' (starts Bearer: %s)", auth_header[:20], auth_header.startswith("Bearer "))
         token = auth_header.removeprefix("Bearer ").strip()
 
@@ -83,8 +79,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Intento 2: verificar como JWT
         if settings.JWT_SECRET:
             try:
-                jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"],
-                           audience="karia-reach", issuer="karia-reach-backend")
+                payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"],
+                                     audience="karia-reach", issuer="karia-reach-backend")
+                request.state.usuario_id = payload.get("usuario_id")
                 return await call_next(request)
             except jwt.ExpiredSignatureError:
                 log.warning("JWT expirado desde %s", request.client.host if request.client else "unknown")
@@ -93,7 +90,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     content={"error": True, "message": "Sesion expirada", "code": "TOKEN_EXPIRED"},
                 )
             except jwt.InvalidTokenError as exc:
-                # DEBUG: loguear error exacto de JWT
                 log.debug("JWT decode fallo: %s — token[:20]='%s'", exc, token[:20])
                 return self._unauthorized(request)
 

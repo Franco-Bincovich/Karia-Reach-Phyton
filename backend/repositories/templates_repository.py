@@ -37,7 +37,7 @@ async def listar(usuario_id: str = None) -> list[dict]:
                 rows = await conn.fetch(
                     "SELECT * FROM templates ORDER BY created_at DESC"
                 )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando templates: %s", exc)
         raise AppError("Error al listar templates", "DB_TEMPLATES_LIST", 500) from exc
@@ -84,27 +84,19 @@ async def crear(template: dict) -> dict:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
         log.info("Template creado: %s", template.get("nombre"))
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error creando template: %s", exc)
         raise AppError("Error al crear template", "DB_TEMPLATES_CREATE", 500) from exc
 
 
-async def eliminar(id: str) -> bool:
-    """
-    Elimina un template por id.
-
-    Args:
-        id: UUID del template.
-
-    Returns:
-        True si se elimino, False si no existia.
-    """
+async def eliminar(id: str, usuario_id: str) -> bool:
+    """Elimina un template por id verificando propiedad."""
     try:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(
-                "DELETE FROM templates WHERE id = $1 RETURNING id",
-                uuid.UUID(id),
+                "DELETE FROM templates WHERE id = $1 AND usuario_id = $2 RETURNING id",
+                uuid.UUID(id), uuid.UUID(usuario_id),
             )
         eliminado = row is not None
         if eliminado:

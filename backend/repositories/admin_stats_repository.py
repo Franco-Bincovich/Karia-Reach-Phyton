@@ -110,7 +110,8 @@ async def obtener_integraciones_usuario(usuario_id: str) -> list[str]:
                 uuid.UUID(usuario_id),
             )
         return [r["servicio"] for r in rows]
-    except Exception:
+    except Exception as exc:
+        log.warning("Error obteniendo integraciones usuario %s: %s", usuario_id, exc)
         return []
 
 

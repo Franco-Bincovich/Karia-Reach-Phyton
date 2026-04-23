@@ -1,95 +1,107 @@
 """
-Scheduler de campanas programadas — AsyncIOScheduler de APScheduler.
+Scheduler de campanas programadas — APScheduler AsyncIO.
 
-Al arrancar carga todas las campanas con estado 'programada'.
-Expone funciones para agregar y cancelar jobs en tiempo real.
+Usa un job de polling cada 1 minuto que evalua todas las campanas activas.
+Exporta crear_scheduler() para el lifespan de la app y helpers para el controller.
 """
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from logger import get_logger
-from repositories import campanas_programadas_repository as repo
-from services import campanas_programadas_service
 
 log = get_logger(__name__)
 
-_scheduler = AsyncIOScheduler()
+_scheduler: AsyncIOScheduler | None = None
 
 
-def get_scheduler() -> AsyncIOScheduler:
-    """Devuelve la instancia global del scheduler."""
+def get_scheduler() -> AsyncIOScheduler | None:
+    """Devuelve la instancia activa del scheduler."""
     return _scheduler
 
 
-async def iniciar() -> None:
-    """Carga campanas activas de la DB y arranca el scheduler."""
-    campanas = await repo.listar_programadas()
-    for campana in campanas:
-        _agregar_job(campana)
-    _scheduler.start()
-    log.info("Scheduler iniciado con %d campana(s) programada(s)", len(campanas))
+async def ejecutar_campanas_programadas() -> None:
+    """
+    Job de polling (cada 1 minuto): dispara campanas con vencimiento alcanzado.
 
+    - Tipo 'unica': ejecuta si fecha_envio <= ahora.
+    - Tipo 'recurrente': ejecuta si hoy es uno de los dias_semana programados,
+      ya paso la hora_envio y no se ejecuto todavia hoy.
+    """
+    from repositories import campanas_programadas_repository as cp_repo
+    from services import campanas_programadas_service as cp_svc
 
-def detener() -> None:
-    """Detiene el scheduler limpiamente en shutdown."""
-    if _scheduler.running:
-        _scheduler.shutdown(wait=False)
-        log.info("Scheduler detenido")
-
-
-def _agregar_job(campana: dict) -> None:
-    """Calcula el trigger y registra el job en el scheduler."""
-    campana_id = campana["id"]
-    job_id = f"campana_{campana_id}"
-    hora_envio = campana.get("hora_envio", "09:00")
-    hora, minuto = hora_envio.split(":")
-
-    if campana["tipo"] == "unica":
-        fecha_envio = campana.get("fecha_envio")
-        if not fecha_envio:
-            log.warning("Campana unica %s sin fecha_envio — ignorada", campana_id)
+    try:
+        campanas = await cp_repo.listar_programadas()
+        if not campanas:
             return
-        if isinstance(fecha_envio, str):
-            fecha_envio = datetime.fromisoformat(fecha_envio.replace("Z", "+00:00"))
-        if fecha_envio < datetime.now(timezone.utc):
-            log.warning("Campana unica %s con fecha en el pasado — ignorada", campana_id)
-            return
-        trigger = DateTrigger(run_date=fecha_envio)
-    else:
-        dias = campana.get("dias_semana") or []
-        if not dias:
-            log.warning("Campana recurrente %s sin dias_semana — ignorada", campana_id)
-            return
-        dia_str = ",".join(str(d) for d in dias)
-        trigger = CronTrigger(day_of_week=dia_str, hour=int(hora), minute=int(minuto))
+        ahora = datetime.now(timezone.utc)
+        hoy = ahora.date()
+        hora_hoy = ahora.strftime("%H:%M")
+        dia = ahora.weekday()  # 0=Lun … 6=Dom, igual que el frontend
 
+        for c in campanas:
+            cid = c["id"]
+            try:
+                fe_str = c.get("fecha_envio")
+                ue_str = c.get("ultima_ejecucion")
+
+                if c["tipo"] == "unica":
+                    if not fe_str:
+                        continue
+                    fe = datetime.fromisoformat(fe_str)
+                    fe = fe if fe.tzinfo else fe.replace(tzinfo=timezone.utc)
+                    debe = fe <= ahora
+                else:  # recurrente
+                    ya_hoy = ue_str and datetime.fromisoformat(ue_str).date() >= hoy
+                    debe = (
+                        dia in (c.get("dias_semana") or [])
+                        and hora_hoy >= c.get("hora_envio", "25:00")
+                        and not ya_hoy
+                    )
+
+                if debe:
+                    log.info("Scheduler: ejecutando campana '%s' (%s)", c.get("nombre"), cid)
+                    await cp_svc.ejecutar(cid)
+            except Exception as exc:
+                log.error("Scheduler: error en campana %s: %s", cid, exc)
+    except Exception as exc:
+        log.error("Scheduler: error en job ejecutar_campanas_programadas: %s", exc)
+
+
+def crear_scheduler() -> AsyncIOScheduler:
+    """Crea y configura el scheduler con el job de polling.
+
+    Returns:
+        AsyncIOScheduler configurado. Llamar .start() al usar.
+    """
+    global _scheduler
+    _scheduler = AsyncIOScheduler()
     _scheduler.add_job(
-        campanas_programadas_service.ejecutar,
-        trigger=trigger,
-        args=[campana_id],
-        id=job_id,
+        ejecutar_campanas_programadas,
+        IntervalTrigger(minutes=1),
+        id="campanas_programadas",
         replace_existing=True,
-        misfire_grace_time=300,
     )
-    log.info("Job registrado: %s (tipo=%s)", job_id, campana["tipo"])
+    return _scheduler
 
 
 def agregar_campana(campana: dict) -> None:
-    """Agrega una campana al scheduler en tiempo real al crearla."""
-    if _scheduler.running:
-        _agregar_job(campana)
+    """Notifica al scheduler que hay una nueva campana.
+
+    En el modelo de polling no requiere accion — el siguiente ciclo
+    la detectara automaticamente.
+    """
+    log.debug("Campana '%s' creada — sera detectada en el proximo ciclo de polling", campana.get("id"))
 
 
 def cancelar_campana(campana_id: str) -> None:
-    """Remueve el job del scheduler al cancelar una campana."""
-    job_id = f"campana_{campana_id}"
-    job = _scheduler.get_job(job_id)
-    if job:
-        job.remove()
-        log.info("Job removido: %s", job_id)
+    """Notifica al scheduler que una campana fue cancelada.
+
+    En el modelo de polling no requiere accion — las campanas con
+    estado != 'programada' son omitidas por listar_programadas().
+    """
+    log.debug("Campana '%s' cancelada — sera omitida en el proximo ciclo de polling", campana_id)

@@ -45,7 +45,7 @@ async def guardar_template(template: dict, usuario_id: str = None) -> dict:
     return {"data": creado}
 
 
-async def eliminar_template(id: str) -> dict:
+async def eliminar_template(id: str, usuario_id: str = None) -> dict:
     """Elimina un template por id."""
-    await compose_service.eliminar_template(id)
+    await compose_service.eliminar_template(id, usuario_id)
     return {"deleted": True}

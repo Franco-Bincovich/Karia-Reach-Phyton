@@ -12,6 +12,7 @@ from typing import Optional
 from integrations.postgres_client import get_pool
 from logger import get_logger
 from middleware.error_handler import AppError
+from utils.db import METODOS_BUSQUEDA_VALIDOS
 
 log = get_logger(__name__)
 
@@ -24,7 +25,6 @@ _QUERY = """
     LIMIT 1
 """
 
-_TODOS_METODOS = ['claude_ai', 'apollo', 'perplexity', 'apify', 'scraping_web', 'carga_manual']
 
 
 async def buscar_usuario_por_email(email: str) -> Optional[dict]:
@@ -53,7 +53,7 @@ async def buscar_usuario_por_email(email: str) -> Optional[dict]:
         if row.get("updated_at") is not None:
             row["updated_at"] = row["updated_at"].isoformat()
         if not row.get("metodos_habilitados"):
-            row["metodos_habilitados"] = _TODOS_METODOS
+            row["metodos_habilitados"] = sorted(METODOS_BUSQUEDA_VALIDOS)
         else:
             row["metodos_habilitados"] = list(row["metodos_habilitados"])
         return row

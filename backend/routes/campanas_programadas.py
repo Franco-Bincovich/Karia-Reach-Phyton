@@ -23,11 +23,7 @@ router = APIRouter(prefix="/api/campanas-programadas", tags=["campanas-programad
 
 def get_usuario_id(request: Request) -> str:
     """Extrae usuario_id del JWT usando la función centralizada."""
-    uid = get_usuario_id_from_request(request)
-    if not uid:
-        from middleware.error_handler import AppError
-        raise AppError("Se requiere autenticacion JWT", "JWT_REQUIRED", 401)
-    return uid
+    return get_usuario_id_from_request(request)
 
 
 # --- Modelos de validacion ---

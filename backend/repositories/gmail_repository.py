@@ -57,7 +57,7 @@ async def guardar_credenciales(
                 scopes,
             )
         log.info("Credenciales Gmail guardadas para usuario %s (%s)", usuario_id, email)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error guardando credenciales Gmail de %s: %s", usuario_id, exc)
         raise AppError("Error al guardar credenciales Gmail", "DB_GMAIL_SAVE", 500) from exc
@@ -71,7 +71,7 @@ async def obtener_por_usuario(usuario_id: str) -> Optional[dict]:
                 f"SELECT * FROM {_TABLE} WHERE usuario_id = $1 AND activo = true LIMIT 1",
                 uuid.UUID(usuario_id),
             )
-        return _record_to_dict(row) if row else None
+        return record_to_dict(row) if row else None
     except Exception as exc:
         log.error("Error obteniendo credenciales Gmail de %s: %s", usuario_id, exc)
         raise AppError("Error al obtener credenciales Gmail", "DB_GMAIL_GET", 500) from exc

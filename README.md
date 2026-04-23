@@ -28,8 +28,9 @@ npm install
 ```
 
 ## Migraciones de base de datos
-Ejecutar como superusuario PostgreSQL en orden:
+Ejecutar como superusuario PostgreSQL en orden. **Correr `000` primero, una sola vez** — crea la tabla de control de migraciones y registra las ya aplicadas:
 ```bash
+psql -U postgres -d karia_reach -f backend/migrations/000_migration_tracker.sql
 psql -U postgres -d karia_reach -f backend/migrations/001_initial_schema.sql
 psql -U postgres -d karia_reach -f backend/migrations/002_gmail_integrations.sql
 psql -U postgres -d karia_reach -f backend/migrations/003_contact_source_scraping.sql
@@ -74,7 +75,7 @@ Diseñada para equipos de ventas y growth que necesitan escalar su alcance sin p
 |---|---|---|
 | FastAPI | 0.115.6 | Framework web async |
 | Uvicorn | 0.34.0 | Servidor ASGI |
-| Supabase | 2.11.0 | Base de datos PostgreSQL |
+| asyncpg | 0.30.0 | Cliente PostgreSQL async |
 | Anthropic | 0.42.0 | Claude AI (búsqueda y composición) |
 | Google API Client | 2.159.0 | Gmail API (envío y lectura) |
 | PyJWT | 2.9.0 | Autenticación JWT |
@@ -89,10 +90,10 @@ Diseñada para equipos de ventas y growth que necesitan escalar su alcance sin p
 | Tecnología | Versión | Uso |
 |---|---|---|
 | React | 18.3.1 | UI library |
-| React Router | 7.1.1 | Routing SPA |
-| Vite | 6.0.5 | Build tool y dev server |
-| Axios | 1.7.9 | Cliente HTTP |
-| XLSX | 0.18.5 | Exportación a Excel |
+| React Router | 7.13.2 | Routing SPA |
+| Vite | 6.4.1 | Build tool y dev server |
+| Axios | 1.14.0 | Cliente HTTP |
+| ExcelJS | 4.4.0 | Exportación a Excel |
 
 ---
 
@@ -102,6 +103,7 @@ Diseñada para equipos de ventas y growth que necesitan escalar su alcance sin p
 Reach-Phyton/
 ├── backend/
 │   ├── main.py                    # Entry point FastAPI, middleware, lifespan
+│   ├── scheduler.py               # APScheduler — polling de respuestas Gmail
 │   ├── logger.py                  # Logging centralizado (color dev, JSON prod)
 │   ├── config/
 │   │   └── settings.py            # Variables de entorno con Pydantic
@@ -126,8 +128,12 @@ Reach-Phyton/
 │   │   ├── compose_service.py
 │   │   ├── send_service.py
 │   │   ├── replies_service.py
-│   │   └── apollo_service.py
-│   ├── repositories/              # Acceso a datos (Supabase)
+│   │   ├── apollo_service.py
+│   │   ├── email_builder_service.py
+│   │   ├── enrichment_service.py
+│   │   ├── gmail_oauth_service.py
+│   │   └── gmail_credentials_service.py
+│   ├── repositories/              # Acceso a datos (PostgreSQL)
 │   │   ├── auth_repository.py
 │   │   ├── contacts_repository.py
 │   │   ├── campaigns_repository.py
@@ -136,10 +142,14 @@ Reach-Phyton/
 │   │   ├── integrations_repository.py
 │   │   └── tracking_repository.py
 │   ├── integrations/              # Clientes de servicios externos
-│   │   ├── supabase_client.py
 │   │   ├── claude_client.py
 │   │   ├── gmail_client.py
-│   │   └── apollo_client.py
+│   │   ├── gmail_send_client.py
+│   │   ├── gmail_reader_client.py
+│   │   ├── gmail_oauth_flow.py
+│   │   ├── apollo_client.py
+│   │   ├── apollo_search_client.py
+│   │   └── apollo_enrich_client.py
 │   ├── middleware/                 # Auth, rate limiting, error handling
 │   │   ├── auth.py
 │   │   ├── rate_limiter.py
@@ -309,7 +319,7 @@ Reach-Phyton/
 
 ---
 
-## Base de Datos (Supabase / PostgreSQL)
+## Base de Datos (PostgreSQL)
 
 ### Tablas
 
@@ -335,10 +345,6 @@ PORT=3001                              # Puerto del backend
 NODE_ENV=development                   # development | production
 BASE_URL=http://localhost:3001         # URL base (tracking pixels)
 ALLOWED_ORIGINS=http://localhost:5173  # CORS origins (comma-separated)
-
-# ── Supabase ──
-SUPABASE_URL=https://xxxx.supabase.co  # URL del proyecto Supabase
-SUPABASE_SERVICE_KEY=eyJ...            # Service role key (bypasses RLS)
 
 # ── Claude AI (Anthropic) ──
 ANTHROPIC_API_KEY=sk-ant-...           # API key de Anthropic
@@ -407,6 +413,17 @@ npm run dev
 El frontend estará disponible en `http://localhost:5173`.
 
 > Vite está configurado para hacer proxy de `/api` y `/track` hacia `http://localhost:3001`, así que no se necesita configuración CORS adicional en desarrollo.
+
+### Primer superadmin
+
+El sistema arranca sin usuarios. Para crear el primer superadmin, ejecutar el script incluido:
+
+```bash
+cd backend
+python scripts/crear_superadmin.py
+```
+
+Una vez creado, podés gestionar el resto de los usuarios desde el panel de administración en `/admin`.
 
 ---
 
@@ -484,6 +501,4 @@ El frontend estará disponible en `http://localhost:5173`.
 - Sincronización y gestión de respuestas
 - Exportación a Excel
 - Configuración de integraciones (Apollo)
-
-### Pendiente
-- **Envío programado (scheduled emails)** — El campo `scheduled_at` existe en la tabla `campaigns` y el placeholder está en el frontend, pero la lógica de scheduling aún no está implementada.
+- Envío programado de campañas (APScheduler)

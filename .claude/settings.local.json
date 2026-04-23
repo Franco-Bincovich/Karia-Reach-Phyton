@@ -20,7 +20,17 @@
       "Bash(mv \"002_contact_source_scraping.sql\" \"003_contact_source_scraping.sql\")",
       "Bash(mv \"003_campanas_constraints.sql\" \"004_campanas_constraints.sql\")",
       "Bash(mv \"004_metodos_habilitados.sql\" \"005_metodos_habilitados.sql\")",
-      "Read(//c/c/Users/Franco Bincovich/Desktop/Visual Code/Karia-Reach-Phyton/backend/**)"
+      "Read(//c/c/Users/Franco Bincovich/Desktop/Visual Code/Karia-Reach-Phyton/backend/**)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\)]\")",
+      "Bash(pip show *)",
+      "Bash(python -m pip show google-auth)",
+      "Bash(./venv/Scripts/pip.exe show *)",
+      "Bash(venv/Scripts/pip show *)",
+      "Bash(xargs -I{} wc -l {})",
+      "Bash(xargs grep *)",
+      "Bash(xargs wc *)",
+      "Bash(powershell *)",
+      "Bash(grep -v \"\\\\$[0-9]\")"
     ]
   }
 }

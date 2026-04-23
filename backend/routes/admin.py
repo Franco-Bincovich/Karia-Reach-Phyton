@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from controllers import admin_controller
 from middleware.auth import get_rol_from_request, get_usuario_id_from_request
@@ -21,15 +21,12 @@ def _require_superadmin(request: Request) -> str:
     """Verifica que el usuario sea superadmin. Retorna su usuario_id."""
     if get_rol_from_request(request) != "superadmin":
         raise AppError("Acceso denegado — se requiere rol superadmin", "FORBIDDEN", 403)
-    uid = get_usuario_id_from_request(request)
-    if not uid:
-        raise AppError("No se pudo identificar al usuario", "UNAUTHORIZED", 401)
-    return uid
+    return get_usuario_id_from_request(request)
 
 
 class CrearUsuarioRequest(BaseModel):
     """Body para crear un usuario nuevo."""
-    email: str = Field(..., min_length=5)
+    email: EmailStr
     password: str = Field(..., min_length=8, description="Mínimo 8 caracteres")
     nombre: str = Field(..., min_length=2)
     rol: str = Field("user", pattern="^(user|superadmin)$")
@@ -38,7 +35,7 @@ class CrearUsuarioRequest(BaseModel):
 class EditUsuarioRequest(BaseModel):
     """Body para editar un usuario."""
     nombre: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     rol: Optional[str] = Field(None, pattern="^(user|superadmin)$")
     metodos_habilitados: Optional[List[str]] = None
 

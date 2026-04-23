@@ -28,8 +28,8 @@ async def _inferir_rubro(prompt_personalizado: str) -> str:
             data = response.json()
             textos = [b["text"] for b in data.get("content", []) if b.get("type") == "text"]
             return textos[0].strip() if textos else prompt_personalizado[:30]
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("No se pudo inferir rubro: %s", exc)
     return prompt_personalizado[:30]
 
 

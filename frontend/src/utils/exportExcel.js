@@ -1,30 +1,46 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
-/**
- * Exporta un array de contactos a un archivo Excel (.xlsx).
- * Columnas: Nombre, Empresa, Cargo, Email Empresarial, Email Personal,
- * Telefono Empresa, Telefono Personal, Confianza (%), Origen, Fecha.
- */
-export function exportarContactosExcel(contactos) {
-  const rows = contactos.map((c) => ({
-    Nombre: c.nombre || '',
-    Empresa: c.empresa || '',
-    Cargo: c.cargo || '',
-    'Email Empresarial': c.email_empresarial || '',
-    'Email Personal': c.email_personal || '',
-    'Telefono Empresa': c.telefono_empresa || '',
-    'Telefono Personal': c.telefono_personal || '',
-    'Confianza (%)': c.confianza != null
-      ? (c.confianza > 1 ? Math.round(c.confianza) : Math.round(c.confianza * 100))
-      : '',
-    Origen: c.origen || '',
-    Fecha: c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '',
-  }))
+export async function exportarContactosExcel(contactos) {
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet('Contactos')
 
-  const ws = XLSX.utils.json_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Contactos')
+  sheet.columns = [
+    { header: 'Nombre', key: 'nombre', width: 25 },
+    { header: 'Empresa', key: 'empresa', width: 25 },
+    { header: 'Cargo', key: 'cargo', width: 25 },
+    { header: 'Email Empresarial', key: 'email_empresarial', width: 30 },
+    { header: 'Email Personal', key: 'email_personal', width: 30 },
+    { header: 'Telefono Empresa', key: 'telefono_empresa', width: 20 },
+    { header: 'Telefono Personal', key: 'telefono_personal', width: 20 },
+    { header: 'Confianza (%)', key: 'confianza', width: 15 },
+    { header: 'Origen', key: 'origen', width: 15 },
+    { header: 'Fecha', key: 'fecha', width: 15 },
+  ]
 
+  for (const c of contactos) {
+    sheet.addRow({
+      nombre: c.nombre || '',
+      empresa: c.empresa || '',
+      cargo: c.cargo || '',
+      email_empresarial: c.email_empresarial || '',
+      email_personal: c.email_personal || '',
+      telefono_empresa: c.telefono_empresa || '',
+      telefono_personal: c.telefono_personal || '',
+      confianza: c.confianza != null
+        ? (c.confianza > 1 ? Math.round(c.confianza) : Math.round(c.confianza * 100))
+        : '',
+      origen: c.origen || '',
+      fecha: c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '',
+    })
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
   const fecha = new Date().toISOString().slice(0, 10)
-  XLSX.writeFile(wb, `contactos-karia-${fecha}.xlsx`)
+  a.href = url
+  a.download = `contactos-karia-${fecha}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
 }

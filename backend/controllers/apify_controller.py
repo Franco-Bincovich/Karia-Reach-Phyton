@@ -30,9 +30,9 @@ async def eliminar_config(usuario_id: str = None) -> dict:
     return {"deleted": True}
 
 
-async def enriquecer_contacto(contacto_id: str) -> dict:
+async def enriquecer_contacto(contacto_id: str, usuario_id: str = None) -> dict:
     """Enriquece un contacto existente con el pipeline de Apify."""
-    return await apify_service.enriquecer_contacto(contacto_id)
+    return await apify_service.enriquecer_contacto(contacto_id, usuario_id)
 
 
 async def buscar(rubro: str, ubicacion: str, pais: str, cantidad: int) -> dict:

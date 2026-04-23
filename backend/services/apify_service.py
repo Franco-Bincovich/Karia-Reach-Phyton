@@ -4,8 +4,10 @@ Servicio Apify — logica de enriquecimiento y busqueda por Maps.
 from __future__ import annotations
 
 from logger import get_logger
+from middleware.error_handler import AppError
 from repositories import apify_repository
 from services import apify_enriquecimiento_service
+from utils.helpers import require_uid
 
 log = get_logger(__name__)
 
@@ -17,21 +19,15 @@ _CAMPOS_VALIDOS = frozenset({
 })
 
 
-async def enriquecer_contacto(contacto_id: str) -> dict:
+async def enriquecer_contacto(contacto_id: str, usuario_id: str = None) -> dict:
     """
     Enriquece un contacto existente con el pipeline de Apify.
 
-    Args:
-        contacto_id: UUID del contacto en la base de datos.
-
-    Returns:
-        Dict con 'data' (contacto actualizado) y 'enriquecido' (bool).
-
     Raises:
-        AppError: CONTACT_NOT_FOUND (404) si el contacto no existe.
-        AppError: DB_CONTACTS_UPDATE (500) si falla la actualizacion.
+        AppError: CONTACT_NOT_FOUND (404) si el contacto no existe o no pertenece al usuario.
     """
-    contacto = await apify_repository.obtener_contacto(contacto_id)
+    require_uid(usuario_id)
+    contacto = await apify_repository.obtener_contacto(contacto_id, usuario_id)
 
     datos = await apify_enriquecimiento_service.enriquecer_contacto(contacto)
     if not datos:

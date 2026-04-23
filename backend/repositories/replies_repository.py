@@ -9,6 +9,7 @@ Usa asyncpg directamente contra el pool de Postgres local.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from integrations.postgres_client import get_pool
@@ -57,7 +58,7 @@ async def guardar_respuesta(reply: dict) -> dict:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
         log.info("Respuesta guardada de %s", reply.get("de"))
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error guardando respuesta: %s", exc)
         raise AppError("Error al guardar respuesta", "DB_REPLIES_CREATE", 500) from exc
@@ -94,7 +95,7 @@ async def listar_por_campana(campaign_id: str) -> list[dict]:
                 "SELECT * FROM email_replies WHERE campaign_id = $1 ORDER BY fecha DESC",
                 uuid.UUID(campaign_id),
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando respuestas de campana %s: %s", campaign_id, exc)
         raise AppError("Error al listar respuestas", "DB_REPLIES_LIST", 500) from exc
@@ -110,7 +111,7 @@ async def obtener_por_id(id: str) -> dict:
             )
         if not row:
             raise AppError("Respuesta no encontrada", "REPLY_NOT_FOUND", 404)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except AppError:
         raise
     except Exception as exc:
@@ -126,7 +127,7 @@ async def buscar_por_message_id(message_id: str) -> list[dict]:
                 "SELECT id FROM email_replies WHERE message_id = $1",
                 message_id,
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error buscando por message_id: %s", exc)
         raise AppError("Error al buscar respuesta", "DB_REPLIES_SEARCH", 500) from exc

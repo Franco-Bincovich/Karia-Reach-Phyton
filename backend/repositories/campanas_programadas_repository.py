@@ -63,7 +63,7 @@ async def crear(usuario_id: str, datos: dict) -> dict:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
         log.info("Campana programada creada: %s", datos.get("nombre"))
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error creando campana programada: %s", exc)
         raise AppError("Error al crear campana programada", "DB_CAMPANA_PROG_CREATE", 500) from exc
@@ -77,7 +77,7 @@ async def listar(usuario_id: str) -> list[dict]:
                 f"SELECT * FROM {_TABLE} WHERE usuario_id = $1 ORDER BY created_at DESC",
                 uuid.UUID(usuario_id),
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando campanas programadas: %s", exc)
         raise AppError("Error al listar campanas programadas", "DB_CAMPANA_PROG_LIST", 500) from exc
@@ -94,7 +94,7 @@ async def obtener(campana_id: str, usuario_id: str) -> dict:
             )
         if not row:
             raise AppError("Campana programada no encontrada", "CAMPANA_PROG_NOT_FOUND", 404)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except AppError:
         raise
     except Exception as exc:
@@ -112,7 +112,7 @@ async def obtener_sin_usuario(campana_id: str) -> dict:
             )
         if not row:
             raise AppError("Campana programada no encontrada", "CAMPANA_PROG_NOT_FOUND", 404)
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except AppError:
         raise
     except Exception as exc:
@@ -126,7 +126,7 @@ async def listar_programadas() -> list[dict]:
             rows = await conn.fetch(
                 f"SELECT * FROM {_TABLE} WHERE estado = 'programada'"
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando campanas activas: %s", exc)
         raise AppError("Error al listar campanas activas", "DB_CAMPANA_PROG_ACTIVAS", 500) from exc

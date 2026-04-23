@@ -52,7 +52,7 @@ async def listar(usuario_id: str = None) -> list[dict]:
                 )
             else:
                 rows = await conn.fetch("SELECT * FROM contacts ORDER BY created_at DESC")
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando contactos: %s", exc)
         raise AppError("Error al listar contactos", "DB_CONTACTS_LIST", 500) from exc
@@ -85,7 +85,7 @@ async def listar_por_ids(ids: list[str], usuario_id: str) -> list[dict]:
                 "SELECT * FROM contacts WHERE id = ANY($1) AND usuario_id = $2",
                 uuid_ids, uuid.UUID(usuario_id),
             )
-        return [_record_to_dict(r) for r in rows]
+        return [record_to_dict(r) for r in rows]
     except Exception as exc:
         log.error("Error listando contactos por IDs: %s", exc)
         raise AppError("Error al listar contactos", "DB_CONTACTS_BY_IDS", 500) from exc
@@ -102,7 +102,7 @@ async def crear(contacto: dict) -> dict:
         async with get_pool().acquire() as conn:
             row = await conn.fetchrow(query, *vals)
         log.info("Contacto creado: %s", contacto.get("email_empresarial") or contacto.get("email_personal"))
-        return _record_to_dict(row)
+        return record_to_dict(row)
     except Exception as exc:
         log.error("Error creando contacto: %s", exc)
         raise AppError("Error al crear contacto", "DB_CONTACTS_CREATE", 500) from exc
@@ -132,7 +132,7 @@ async def crear_bulk(contactos: list[dict]) -> list[dict]:
                 cols, placeholders, vals = _build_insert_parts(c)
                 query = f"INSERT INTO contacts ({', '.join(cols)}) VALUES ({', '.join(placeholders)}) RETURNING *"
                 row = await conn.fetchrow(query, *vals)
-                insertados.append(_record_to_dict(row))
+                insertados.append(record_to_dict(row))
             except asyncpg.UniqueViolationError:
                 log.info("Duplicado ignorado: %s", c.get("email_empresarial"))
             except Exception as exc:

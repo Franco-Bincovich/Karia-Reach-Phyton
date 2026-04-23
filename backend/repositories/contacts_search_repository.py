@@ -31,7 +31,7 @@ async def buscar_por_email(email: str) -> Optional[dict]:
                 row = await conn.fetchrow(
                     "SELECT * FROM contacts WHERE email_personal = $1 LIMIT 1", email
                 )
-        return _record_to_dict(row) if row else None
+        return record_to_dict(row) if row else None
     except Exception as exc:
         log.error("Error buscando contacto por email %s: %s", email, exc)
         raise AppError("Error al buscar contacto", "DB_CONTACTS_SEARCH", 500) from exc
@@ -59,7 +59,7 @@ async def find_similar(
                     "WHERE usuario_id = $1 AND nombre ILIKE $2 AND empresa ILIKE $3 LIMIT 1",
                     uuid.UUID(usuario_id), f"%{nombre}%", f"%{empresa}%",
                 )
-            return _record_to_dict(row) if row else None
+            return record_to_dict(row) if row else None
         except Exception as exc:
             log.error("Error en find_similar nombre/empresa: %s", exc)
     return None
@@ -76,7 +76,7 @@ async def merge_contact(contact_id: str, nuevos_datos: dict, source: str, usuari
             )
             if not row:
                 raise AppError("Contacto no encontrado", "CONTACT_NOT_FOUND", 404)
-            actual = _record_to_dict(row)
+            actual = record_to_dict(row)
 
             campos_a_actualizar: dict = {
                 campo: nuevos_datos.get(campo)
@@ -113,7 +113,7 @@ async def merge_contact(contact_id: str, nuevos_datos: dict, source: str, usuari
             updated_row = await conn.fetchrow(query, *vals)
 
         log.info("merge_contact %s: campos actualizados %s", contact_id, list(campos_validos.keys()))
-        return _record_to_dict(updated_row) if updated_row else actual
+        return record_to_dict(updated_row) if updated_row else actual
 
     except AppError:
         raise
