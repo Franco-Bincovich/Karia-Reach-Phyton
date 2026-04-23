@@ -66,6 +66,8 @@ async def guardar_preferencias(usuario_id: str, preferencias: dict) -> None:
 
 def _es_ip_privada(ip_str: str) -> bool:
     """True si la IP cae en un rango privado, reservado o de loopback."""
+    if ip_str == "169.254.169.254":
+        return True
     try:
         addr = ipaddress.ip_address(ip_str)
         return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved or addr.is_unspecified

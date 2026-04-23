@@ -88,7 +88,7 @@ def validar_state(state: str) -> str:
 async def procesar_callback(code: str, usuario_id: str) -> dict:
     """Intercambia el authorization code por tokens y persiste las credenciales cifradas en DB."""
     flow = _build_flow()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, lambda: flow.fetch_token(code=code))
     creds = flow.credentials
 

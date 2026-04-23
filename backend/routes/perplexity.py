@@ -32,7 +32,7 @@ class SearchRequest(BaseModel):
     rubro: str = Field("", description="Industria o sector")
     ubicacion: str = Field("", description="Zona geografica")
     cantidad: int = Field(10, ge=1, le=50)
-    prompt_personalizado: Optional[str] = Field(None, description="Instruccion libre")
+    prompt_personalizado: Optional[str] = Field(None, max_length=1000, description="Instruccion libre")
 
 
 # --- Endpoints ---

@@ -67,7 +67,7 @@ async def obtener_credenciales_validas(usuario_id: str, rol: str) -> dict:
             client_secret=settings.GMAIL_CLIENT_SECRET,
             scopes=row["scopes"].split(","),
         )
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: creds.refresh(Request()))
 
         nuevo_expira = _make_aware(creds.expiry)

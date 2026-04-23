@@ -60,7 +60,7 @@ def _leer_respuestas_sync(credenciales: dict, message_ids: list[str]) -> list[di
 
 async def leer_respuestas(credenciales: dict, message_ids: list[str]) -> list[dict]:
     """Busca respuestas en Gmail sin bloquear el event loop."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     respuestas = await loop.run_in_executor(
         None, _leer_respuestas_sync, credenciales, message_ids
     )

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class LoginRequest(BaseModel):
     """Credenciales de login."""
     email: EmailStr
-    password: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1, max_length=72)
 
 
 @router.post("/login")

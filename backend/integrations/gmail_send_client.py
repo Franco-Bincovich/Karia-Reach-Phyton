@@ -107,7 +107,7 @@ async def enviar_email(
 ) -> dict:
     """Envia un email individual sin bloquear el event loop (timeout 30s)."""
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         resultado = await asyncio.wait_for(
             loop.run_in_executor(
                 None, _enviar_sync, credenciales, destinatario, asunto, cuerpo, tracking_url
