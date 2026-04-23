@@ -33,6 +33,7 @@ export const API_APIFY_STATUS = '/api/apify/status'
 export const API_APIFY_CONFIG = '/api/apify/config'
 export const API_APIFY_SEARCH = '/api/apify/buscar'
 export const API_APIFY_ENRICH = '/api/apify/enriquecer-contacto'
+export const API_APIFY_INSTAGRAM = '/api/apify/instagram/buscar'
 export const API_ADMIN_USUARIOS = '/api/admin/usuarios'
 export const API_ADMIN_USUARIO = (id) => `/api/admin/usuarios/${id}`
 export const API_ADMIN_USUARIO_METODOS = (id) => `/api/admin/usuarios/${id}/metodos`

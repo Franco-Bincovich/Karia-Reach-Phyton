@@ -38,3 +38,8 @@ async def enriquecer_contacto(contacto_id: str, usuario_id: str = None) -> dict:
 async def buscar(rubro: str, ubicacion: str, pais: str, cantidad: int) -> dict:
     """Busca negocios en Google Maps via Apify."""
     return await apify_service.buscar(rubro, ubicacion, pais, cantidad)
+
+
+async def buscar_instagram(handles: list, max_por_perfil: int, usuario_id: str) -> dict:
+    """Busca contactos de Instagram desde perfiles de competencia."""
+    return await apify_service.buscar_instagram(handles, max_por_perfil, usuario_id)

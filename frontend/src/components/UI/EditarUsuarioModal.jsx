@@ -5,7 +5,8 @@ const METODOS = [
   { value: 'claude_ai', label: 'IA (Claude)' },
   { value: 'apollo', label: 'Apollo.io' },
   { value: 'perplexity', label: 'Perplexity' },
-  { value: 'apify', label: 'Apify' },
+  { value: 'google_maps', label: 'Google Maps' },
+  { value: 'instagram', label: 'Instagram' },
   { value: 'scraping_web', label: 'Scraping Web' },
   { value: 'carga_manual', label: 'Carga Manual' },
 ]

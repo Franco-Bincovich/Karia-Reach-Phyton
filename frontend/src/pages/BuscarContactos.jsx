@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   API_CONTACTS_SEARCH_AI, API_CONTACTS_SAVE, API_CONTACTS_MANUAL,
   API_APOLLO_SEARCH, API_APOLLO_STATUS, API_PERPLEXITY_SEARCH, API_PERPLEXITY_STATUS,
-  API_APIFY_STATUS, API_APIFY_SEARCH, API_BLOQUES, API_BLOQUE_CONTACTOS,
+  API_APIFY_STATUS, API_APIFY_SEARCH, API_APIFY_INSTAGRAM, API_BLOQUES, API_BLOQUE_CONTACTOS,
   API_CONTACT_ENRICH, API_SCRAPING_BUSCAR,
 } from '../constants/api'
 import Button from '../components/UI/Button'
@@ -15,6 +15,7 @@ import LoadingSpinner from '../components/UI/LoadingSpinner'
 import ConfidenceBadge from '../components/UI/ConfidenceBadge'
 import ScrapingForm from '../components/UI/ScrapingForm'
 import ApolloForm from '../components/UI/ApolloForm'
+import InstagramForm from '../components/UI/InstagramForm'
 
 export default function BuscarContactos() {
   const toast = useToast()
@@ -82,10 +83,10 @@ export default function BuscarContactos() {
     if (!form.rubro.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa un rubro o un prompt personalizado')
     if (!form.ubicacion.trim() && !form.prompt_personalizado?.trim()) return toast.error('Ingresa una ubicacion')
     if (metodo === 'perplexity' && !perplexityOk) return toast.error('Configurá tu API key de Perplexity en Configuración')
-    if (metodo === 'apify' && !apifyOk) return toast.error('Configurá tu API key de Apify en Configuración')
-    const endpoints = { ai: API_CONTACTS_SEARCH_AI, perplexity: API_PERPLEXITY_SEARCH, apify: API_APIFY_SEARCH }
+    if (metodo === 'google_maps' && !apifyOk) return toast.error('Configurá tu API key de Apify en Configuración')
+    const endpoints = { ai: API_CONTACTS_SEARCH_AI, perplexity: API_PERPLEXITY_SEARCH, google_maps: API_APIFY_SEARCH }
     const payload = { ...form }
-    if (metodo === 'apify') payload.pais = pais
+    if (metodo === 'google_maps') payload.pais = pais
     if (!payload.prompt_personalizado?.trim()) delete payload.prompt_personalizado
     await buscarConAPI(endpoints[metodo], payload)
   }
@@ -99,6 +100,9 @@ export default function BuscarContactos() {
   }
 
   const handleScrapingBuscar = (entradas) => buscarConAPI(API_SCRAPING_BUSCAR, { entradas })
+
+  const handleInstagramBuscar = ({ handles, max_por_perfil }) =>
+    buscarConAPI(API_APIFY_INSTAGRAM, { handles, max_por_perfil })
 
   const enriquecerExistente = async (row) => {
     const cid = row.contact_id_existente; if (!cid) return
@@ -142,7 +146,7 @@ export default function BuscarContactos() {
   return (
     <div>
       <div className="card mb-md">
-        {metodo !== 'scraping' && (
+        {metodo !== 'scraping' && metodo !== 'instagram' && (
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="buscar-rubro">Rubro / Industria</label>
@@ -159,14 +163,15 @@ export default function BuscarContactos() {
           </div>
         )}
         {metodo === 'apollo' && <ApolloForm onBuscar={handleApolloBuscar} loading={loading} />}
-        {metodo === 'apify' && (
+        {metodo === 'google_maps' && (
           <div className="form-row"><div className="form-group">
             <label htmlFor="buscar-pais">País</label>
             <input id="buscar-pais" value={pais} onChange={(e) => setPais(e.target.value)} placeholder="Ej: Argentina, Chile, Uruguay..." />
           </div></div>
         )}
         {metodo === 'scraping' && <ScrapingForm onBuscar={handleScrapingBuscar} loading={loading} />}
-        {metodo !== 'scraping' && (
+        {metodo === 'instagram' && <InstagramForm onBuscar={handleInstagramBuscar} loading={loading} />}
+        {metodo !== 'scraping' && metodo !== 'instagram' && (
           <div className="form-group">
             <label htmlFor="buscar-prompt">Prompt personalizado (opcional)</label>
             <input id="buscar-prompt" value={form.prompt_personalizado} onChange={(e) => setForm({ ...form, prompt_personalizado: e.target.value })} placeholder="Ej: Solo directores o gerentes generales, con más de 10 años de experiencia" />
@@ -176,10 +181,11 @@ export default function BuscarContactos() {
           {metodos.includes('claude_ai') && <Button variant={metodo === 'ai' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('ai')}>Claude (IA)</Button>}
           {metodos.includes('apollo') && <Button variant={metodo === 'apollo' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apollo')}>Apollo</Button>}
           {metodos.includes('perplexity') && <Button variant={metodo === 'perplexity' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('perplexity')}>Perplexity</Button>}
-          {metodos.includes('apify') && <Button variant={metodo === 'apify' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('apify')}>Apify</Button>}
+          {metodos.includes('google_maps') && <Button variant={metodo === 'google_maps' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('google_maps')}>Google Maps</Button>}
+          {metodos.includes('instagram') && <Button variant={metodo === 'instagram' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('instagram')}>Instagram</Button>}
           {metodos.includes('scraping_web') && <Button variant={metodo === 'scraping' ? 'primary' : 'ghost'} size="sm" onClick={() => setMetodo('scraping')}>Scraping Web</Button>}
           <div style={{ flex: 1 }} />
-          {metodo !== 'apollo' && metodo !== 'scraping' && <Button onClick={buscar} disabled={loading}>Buscar</Button>}
+          {metodo !== 'apollo' && metodo !== 'scraping' && metodo !== 'instagram' && <Button onClick={buscar} disabled={loading}>Buscar</Button>}
           {metodos.includes('carga_manual') && <Button variant="ghost" onClick={() => setShowManual(true)}>+ Manual</Button>}
         </div>
         {metodo === 'apollo' && apolloOk === false && <p className="text-sm text-secondary" style={{ marginTop: '0.5rem' }}>Configurá tu API key de Apollo en Configuración</p>}

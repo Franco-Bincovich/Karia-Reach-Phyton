@@ -35,6 +35,15 @@ class BuscarRequest(BaseModel):
     cantidad: int = Field(10, ge=1, le=20)
 
 
+class InstagramBuscarRequest(BaseModel):
+    """Body para buscar contactos desde perfiles de competencia en Instagram."""
+    handles: list[str] = Field(
+        ..., min_length=1, max_length=8,
+        description="Hasta 8 usernames de Instagram sin @",
+    )
+    max_por_perfil: int = Field(500, ge=10, le=2000)
+
+
 # --- Endpoints ---
 
 @router.post("/enriquecer-contacto")
@@ -69,3 +78,10 @@ async def eliminar_config(request: Request) -> dict:
     """Elimina la API key de Apify."""
     uid = get_usuario_id_from_request(request)
     return await apify_controller.eliminar_config(uid)
+
+
+@router.post("/instagram/buscar")
+async def buscar_instagram(request: Request, body: InstagramBuscarRequest) -> dict:
+    """Busca contactos desde seguidores/likers de perfiles de competencia en Instagram."""
+    uid = get_usuario_id_from_request(request)
+    return await apify_controller.buscar_instagram(body.handles, body.max_por_perfil, uid)

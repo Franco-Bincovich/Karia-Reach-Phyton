@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from logger import get_logger
 from middleware.error_handler import AppError
-from repositories import apify_repository
-from services import apify_enriquecimiento_service
+from repositories import apify_repository, integrations_repository
+from services import apify_enriquecimiento_service, apify_instagram_service
 from utils.helpers import require_uid
+
+_SERVICIO = "apify"
 
 log = get_logger(__name__)
 
@@ -81,3 +83,16 @@ async def buscar(rubro: str, ubicacion: str, pais: str, cantidad: int) -> dict:
     """
     contactos = await apify_enriquecimiento_service.buscar_por_maps(rubro, ubicacion, pais, cantidad)
     return {"data": contactos, "total": len(contactos)}
+
+
+async def buscar_instagram(handles: list[str], max_por_perfil: int, usuario_id: str) -> dict:
+    """
+    Busca contactos de Instagram desde seguidores/likers de perfiles de competencia.
+
+    Raises:
+        AppError: APIFY_NOT_CONFIGURED (400) si no hay API key configurada.
+    """
+    require_uid(usuario_id)
+    if not await integrations_repository.obtener_api_key(_SERVICIO, usuario_id):
+        raise AppError("No hay API key de Apify configurada", "APIFY_NOT_CONFIGURED", 400)
+    return await apify_instagram_service.buscar_instagram(handles, max_por_perfil)

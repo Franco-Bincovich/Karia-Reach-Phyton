@@ -26,6 +26,6 @@ def record_to_dict(record) -> dict:
 
 
 METODOS_BUSQUEDA_VALIDOS = frozenset([
-    "claude_ai", "apollo", "perplexity", "apify",
-    "scraping_web", "carga_manual",
+    "claude_ai", "apollo", "perplexity", "google_maps",
+    "instagram", "scraping_web", "carga_manual",
 ])
